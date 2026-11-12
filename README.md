@@ -1,6 +1,6 @@
 # meeting-manager-backend
 
-Express REST API for Meeting Manager. Can run standalone or as the `backend/` submodule of
+Express + TypeScript REST API for Meeting Manager. Can run standalone or as the `backend/` submodule of
 [meeting-manager](https://github.com/Mrdiamond096/meeting-manager).
 
 ```bash

@@ -8,6 +8,8 @@ install: ## npm install locally
 	npm install
 dev: ## Run API locally (no docker)
 	npm run dev
+typecheck: ## Type-check with tsc
+	npm run typecheck
 test: ## Run tests locally
 	npm test
 up: ## Start api + db in docker
@@ -23,4 +25,4 @@ test-docker: ## Run tests inside container
 clean: ## Remove containers + volumes
 	$(COMPOSE) down -v --remove-orphans
 
-.PHONY: help install dev test up down build logs test-docker clean
+.PHONY: help install dev typecheck test up down build logs test-docker clean

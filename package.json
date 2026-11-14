@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=24 <25"
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
@@ -12,15 +12,22 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
-    "express": "5.1.0"
+    "drizzle-orm": "0.44.7",
+    "express": "5.1.0",
+    "helmet": "8.3.0",
+    "pg": "8.23.1",
+    "zod": "3.25.76"
   },
   "devDependencies": {
     "@types/express": "5.0.0",
-    "@types/node": "20.17.10",
+    "@types/node": "24.19.2",
+    "@types/pg": "8.23.1",
     "@types/supertest": "6.0.2",
+    "drizzle-kit": "0.31.11",
     "supertest": "7.0.0",
     "tsx": "4.19.2",
     "typescript": "5.7.2",

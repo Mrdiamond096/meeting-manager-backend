@@ -3,7 +3,7 @@
 Rules for AI coding agents (Codex, Cursor, Claude). Full brief: umbrella repo `docs/discussion/finally/ai-collaboration.md`.
 
 ## Stack
-Node 24 · Express 5 · TypeScript (ESM, `NodeNext`) · Drizzle ORM + PostgreSQL 16 · Zod 3 · pino · Vitest + supertest.
+Node 24 · Express 5 · TypeScript (ESM, `NodeNext`) · Prisma 7 (`@prisma/adapter-pg`) + PostgreSQL 16 · Zod 3 · pino · Vitest + supertest.
 
 ## Read before coding
 1. `docs/api-contract.md` — source of truth. Do not change it inside a feature PR.
@@ -15,10 +15,14 @@ Node 24 · Express 5 · TypeScript (ESM, `NodeNext`) · Drizzle ORM + PostgreSQL
 src/
   app.ts                  createApp(deps) — mounts routers (shared, do not edit in feature PRs)
   config.ts               env via Zod (shared)
-  db/schema/*.ts          one file per table (shared; schema changes = separate PR + `npm run db:generate`)
+  db/                     client.ts (Prisma client, `Database`/`Executor` types), constants.ts (shared enums-as-strings)
   http/                   errors.ts (AppError + codes), error-handler.ts, validate.ts, rate-limit.ts, auth-guard.ts
   observability/          logger.ts, http-logger.ts
+  generated/prisma/       generated client (gitignored, `npm run db:generate`)
   modules/<domain>/       router.ts · service.ts · repository.ts · schemas.ts (+ domain files)
+prisma/
+  schema.prisma           models (shared; schema changes = separate PR + `npm run db:migrate`, review the generated SQL)
+  migrations/             SQL migrations; CHECK constraints and expression indexes are hand-written here
 test/
   helpers/                resetDb, createUser, createTestApp, loginAs
   <domain>/*.test.ts
@@ -27,7 +31,7 @@ test/
 ## Patterns (must follow)
 - Router = factory `xxxRouter(deps: ModuleDeps)`; use `deps.db` and `deps.now()` (never `new Date()` in logic, never import the global `db`).
 - Router: parse input with `parseBody/parseQuery/parseParams` + `.strict()` Zod schemas → call service → `res.status(..).json(..)`.
-- Service: business rules, transitions, transactions (`deps.db.transaction`). Repository: Drizzle queries only, no `sql.raw` with input.
+- Service: business rules, transitions, transactions (`deps.db.$transaction`). Repository: Prisma client calls only; raw SQL only via tagged `$queryRaw` (never `$queryRawUnsafe` with input).
 - Errors: `throw new AppError('CODE')` with codes from `src/http/errors.ts`. Never send error JSON by hand. Express 5 forwards async throws.
 - Logging: `req.log` only; no `console.log`; never log bodies, passwords, OTP, cookies, tokens or emails. 4xx are `info` (automatic), use `warn` only for abuse signals.
 - Dates: accept with the `instant` helper; respond with `Date#toISOString()`.
@@ -39,7 +43,7 @@ test/
 |---|---|
 | Codex (WS-A) | `src/modules/{meetings,candidates,feedback}/**`, `test/{meetings,candidates,feedback}/**` |
 | Cursor (WS-B) | `src/modules/auth/**` (incl. `authenticate.ts`, wired in `server.ts`), `test/auth/**` |
-| Claude (shared) | everything else (`app.ts`, `config.ts`, `db/**`, `drizzle/**`, `http/**`, `observability/**`, `test/helpers/**`, `package.json`, `docs/api-contract.md`) |
+| Claude (shared) | everything else (`app.ts`, `config.ts`, `db/**`, `prisma/**`, `http/**`, `observability/**`, `test/helpers/**`, `package.json`, `docs/api-contract.md`) |
 
 Need a shared change (new dependency, schema column, app.ts mount, helper)? Do not make it — describe it in the PR under **Shared change request**.
 

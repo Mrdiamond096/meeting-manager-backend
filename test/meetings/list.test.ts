@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { candidates, meetings } from '../../src/db/schema/index.js';
 import { createTestApp, loginAs } from '../helpers/app.js';
 import { createUser, resetDb, testDb } from '../helpers/db.js';
 
@@ -21,7 +20,7 @@ describe('meeting list and calendar', () => {
   it('uses deterministic date/id ordering and does not lose equal-date items between pages', async () => {
     const { app, user } = await loginAs();
     const ids = Array.from({ length: 5 }, () => randomUUID()).sort();
-    await testDb.insert(meetings).values(ids.map((id) => ({ id, title: id, dueDate: new Date(from), createdBy: user.id })));
+    await testDb.meeting.createMany({ data: ids.map((id) => ({ id, title: id, dueDate: new Date(from), createdBy: user.id })) });
     const first = await request(app).get(root).query({ pageSize: 2 });
     const second = await request(app).get(root).query({ pageSize: 2, page: 2 });
     const last = await request(app).get(root).query({ pageSize: 2, page: 3 });
@@ -33,12 +32,12 @@ describe('meeting list and calendar', () => {
   it('applies combined filters to both page items and count with inclusive from/exclusive to', async () => {
     const { app, user } = await loginAs();
     const other = await createUser();
-    const [candidate] = await testDb.insert(candidates).values({ name: 'Alice', position: 'Software Engineer' }).returning();
+    const candidate = await testDb.candidate.create({ data: { name: 'Alice', position: 'Software Engineer' } });
     const seed = { title: 'Matching', dueDate: new Date(from), candidateId: candidate!.id, createdBy: user.id };
-    await testDb.insert(meetings).values([
+    await testDb.meeting.createMany({ data: [
       seed, { ...seed, status: 'CANCELLED' }, { ...seed, dueDate: new Date(to) },
       { ...seed, createdBy: other.id }, { ...seed, candidateId: null }, { ...seed, createdBy: null },
-    ]);
+    ] });
     const filters = { from, to, status: 'PENDING', candidateId: candidate!.id, mine: 'true' };
     const res = await request(app).get(root).query(filters);
     expect(res.status).toBe(200);
@@ -72,12 +71,12 @@ describe('meeting list and calendar', () => {
   it('accepts exactly 42 days and returns only items, not paginated metadata', async () => {
     const { app, user } = await loginAs();
     const other = await createUser();
-    await testDb.insert(meetings).values([
+    await testDb.meeting.createMany({ data: [
       { title: 'Inclusive start', dueDate: new Date(from), createdBy: user.id },
       { title: 'Exclusive end', dueDate: new Date(to), createdBy: user.id },
       { title: 'Cancelled', dueDate: new Date(from), status: 'CANCELLED', createdBy: user.id },
       { title: 'Someone else', dueDate: new Date(from), createdBy: other.id },
-    ]);
+    ] });
     const res = await request(app).get(root).query({ view: 'range', from, to, mine: 'true', status: 'PENDING' });
     expect(res.status).toBe(200);
     expect(Object.keys(res.body)).toEqual(['items']);
@@ -86,14 +85,14 @@ describe('meeting list and calendar', () => {
 
   it('returns 500 matches but rejects 501 instead of truncating the calendar', async () => {
     const { app, user } = await loginAs();
-    await testDb.insert(meetings).values(Array.from({ length: 500 }, (_, i) => ({
+    await testDb.meeting.createMany({ data: Array.from({ length: 500 }, (_, i) => ({
       title: `Meeting ${i}`, dueDate: new Date(from), createdBy: user.id,
-    })));
+    })) });
     const query = { view: 'range', from, to };
     const full = await request(app).get(root).query(query);
     expect(full.status).toBe(200);
     expect(full.body.items).toHaveLength(500);
-    await testDb.insert(meetings).values({ title: 'Too many', dueDate: new Date(from) });
+    await testDb.meeting.create({ data: { title: 'Too many', dueDate: new Date(from) } });
     const excess = await request(app).get(root).query(query);
     expect(excess.status).toBe(400);
     expect(excess.body.error.code).toBe('VALIDATION_ERROR');

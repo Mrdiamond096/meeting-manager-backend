@@ -1,0 +1,118 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// CHECK constraints and the lower(name) index cannot be expressed here; they live in the migration SQL.
+
+model User {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Stored normalized: trimmed + lowercase.
+  email           String    @unique(map: "users_email_unique") @db.VarChar(254)
+  passwordHash    String    @map("password_hash") @db.VarChar(100)
+  role            String    @default("USER") @db.VarChar(16)
+  emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  sessions      Session[]
+  otpChallenges OtpChallenge[]
+  candidates    Candidate[]
+  meetings      Meeting[]
+  feedback      Feedback[]
+
+  @@map("users")
+}
+
+model Session {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// SHA-256 hex of the opaque cookie token; the raw token is never stored.
+  tokenHash  String   @unique(map: "sessions_token_hash_unique") @map("token_hash") @db.VarChar(64)
+  userId     String   @map("user_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  /// Absolute expiry (created_at + 7 days); idle expiry is last_seen_at + 8 hours.
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "sessions_user_id_idx")
+  @@map("sessions")
+}
+
+model OtpChallenge {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  purpose    String    @db.VarChar(16)
+  codeHash   String    @map("code_hash") @db.VarChar(100)
+  attempts   Int       @default(0)
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose], map: "otp_challenges_user_purpose_idx")
+  @@map("otp_challenges")
+}
+
+model Candidate {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Names may repeat; identity is the id (ADR-006).
+  name      String   @db.VarChar(120)
+  position  String   @db.VarChar(80)
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  creator  User?     @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  meetings Meeting[]
+
+  @@map("candidates")
+}
+
+model Meeting {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateId String?   @map("candidate_id") @db.Uuid
+  title       String    @db.VarChar(150)
+  description String    @default("")
+  /// Meeting start instant (ADR-005).
+  dueDate     DateTime  @map("due_date") @db.Timestamptz(6)
+  endAt       DateTime? @map("end_at") @db.Timestamptz(6)
+  status      String    @default("PENDING") @db.VarChar(16)
+  meetingType String?   @map("meeting_type") @db.VarChar(16)
+  provider    String?   @db.VarChar(16)
+  createdBy   String?   @map("created_by") @db.Uuid
+  version     Int       @default(1)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  candidate Candidate? @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  creator   User?      @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  feedback  Feedback[]
+
+  @@index([dueDate, id], map: "meetings_due_date_id_idx")
+  @@index([candidateId, dueDate, id], map: "meetings_candidate_due_date_idx")
+  @@index([createdBy, dueDate, id], map: "meetings_created_by_due_date_idx")
+  @@map("meetings")
+}
+
+/// Append-only interview notes (no update/delete endpoints).
+model Feedback {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  meetingId String   @map("meeting_id") @db.Uuid
+  body      String
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  creator User?   @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([meetingId, createdAt], map: "feedback_meeting_created_at_idx")
+  @@map("feedback")
+}

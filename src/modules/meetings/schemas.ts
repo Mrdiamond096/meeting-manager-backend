@@ -1,6 +1,5 @@
 import { z } from 'zod';
-import { CANDIDATE_POSITIONS } from '../../db/schema/candidates.js';
-import { MEETING_PROVIDERS, MEETING_STATUSES, MEETING_TYPES } from '../../db/schema/meetings.js';
+import { CANDIDATE_POSITIONS, MEETING_PROVIDERS, MEETING_STATUSES, MEETING_TYPES } from '../../db/constants.js';
 import { instant, pagination } from '../../http/validate.js';
 
 const positiveVersion = z.number().int().positive().safe();

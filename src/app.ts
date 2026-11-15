@@ -1,8 +1,10 @@
 import express, { type Express, type RequestHandler } from 'express';
 import helmet from 'helmet';
 import type { Database } from './db/client.js';
+import { config } from './config.js';
 import { anonymous, requireAuth, type Authenticate } from './http/auth-guard.js';
 import { errorHandler, notFoundHandler } from './http/error-handler.js';
+import { originGuard } from './http/origin-guard.js';
 import { rateLimits } from './http/rate-limit.js';
 import { authRouter } from './modules/auth/router.js';
 import { candidatesRouter } from './modules/candidates/router.js';
@@ -18,6 +20,8 @@ export interface AppDeps {
   authenticate?: Authenticate;
   now?: () => Date;
   appVersion?: string;
+  /** Origins allowed on non-GET requests; defaults to ALLOWED_ORIGINS. */
+  allowedOrigins?: readonly string[];
 }
 
 export function createApp(deps: AppDeps): Express {
@@ -33,6 +37,7 @@ export function createApp(deps: AppDeps): Express {
   app.use('/api/health', healthRouter(deps.pingDb, deps.appVersion ?? 'dev'));
 
   const v1 = express.Router();
+  v1.use(originGuard(deps.allowedOrigins ?? config.allowedOrigins));
   v1.use(deps.authenticate ?? anonymous);
   v1.use('/auth', authRouter(moduleDeps));
 

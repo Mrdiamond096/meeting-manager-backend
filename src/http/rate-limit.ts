@@ -28,6 +28,14 @@ export const byIpAndEmail = (req: Request) => {
   return `${byIp(req)}|${email}`;
 };
 
+const UUID = /^[0-9a-f-]{36}$/i;
+
+/** Only uuid-shaped ids become keys, so arbitrary bodies cannot grow the in-memory store. */
+export const byChallenge = (req: Request) => {
+  const id: unknown = req.body?.challengeId;
+  return typeof id === 'string' && UUID.test(id) ? `challenge|${id}` : byIp(req);
+};
+
 export const byUser = (req: Request) => req.user?.id ?? byIp(req);
 
 const MINUTE = 60_000;
@@ -37,5 +45,6 @@ export const rateLimits = {
   login: () => createRateLimiter({ windowMs: 15 * MINUTE, limit: 5, key: byIpAndEmail }),
   register: () => createRateLimiter({ windowMs: 60 * MINUTE, limit: 3, key: byIp }),
   forgotPassword: () => createRateLimiter({ windowMs: 60 * MINUTE, limit: 3, key: byIpAndEmail }),
+  otpResend: () => createRateLimiter({ windowMs: 15 * MINUTE, limit: 3, key: byChallenge }),
   write: () => createRateLimiter({ windowMs: MINUTE, limit: 60, key: byUser }),
 };

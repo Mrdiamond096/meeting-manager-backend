@@ -6,7 +6,7 @@ Follow `AGENTS.md` in the repo root — it is the single source of rules (stack,
 
 Key points:
 - `docs/api-contract.md` is the source of truth; never change it in a feature PR.
-- Cursor owns WS-B Auth only: `src/modules/auth/**`, `src/http/auth-guard.ts` (implementation), `test/auth/**`.
+- Cursor owns WS-B Auth only: `src/modules/auth/**` (implement `createAuthenticate` in `authenticate.ts`) and `test/auth/**`. Origin guard and auth guard are shared and already mounted.
 - Use `AppError`, `parseBody/parseQuery/parseParams`, `deps.db`, `deps.now()`, `req.log`; ESM `.js` imports.
 - Never log passwords, OTP codes, cookies, tokens, emails or bodies. No JWT. No new dependencies without asking.
 - Done = typecheck + tests + build green; Conventional Commits in English.

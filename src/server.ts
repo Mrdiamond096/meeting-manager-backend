@@ -2,6 +2,7 @@ import { createApp } from './app.js';
 import { config } from './config.js';
 import { db, pingDb, pool } from './db/client.js';
 import { runMigrations } from './db/migrate.js';
+import { createAuthenticate } from './modules/auth/authenticate.js';
 import { logger } from './observability/logger.js';
 
 try {
@@ -11,7 +12,8 @@ try {
   process.exit(1);
 }
 
-const server = createApp({ pingDb, db, appVersion: config.appVersion }).listen(config.port, () => {
+const now = () => new Date();
+const server = createApp({ pingDb, db, now, authenticate: createAuthenticate({ db, now }), appVersion: config.appVersion }).listen(config.port, () => {
   logger.info({ port: config.port, env: config.env }, 'api listening');
 });
 

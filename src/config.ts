@@ -19,6 +19,8 @@ const envSchema = z.object({
     .default('http://localhost:8080,http://localhost:3001')
     .transform((v) => v.split(',').map((o) => o.trim()).filter(Boolean)),
   OTP_PROVIDER: z.enum(['mock']).default('mock'),
+  /** Explicit opt-in for the local Docker demo, which runs the production image. */
+  ALLOW_MOCK_OTP: bool.default('false'),
   OTP_MOCK_CODE: z.string().regex(/^\d{6}$/).default('112233'),
 });
 
@@ -31,8 +33,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     throw new Error(`Invalid environment configuration: ${fields}`);
   }
   const e = parsed.data;
-  if (e.NODE_ENV === 'production' && e.OTP_PROVIDER === 'mock') {
-    throw new Error('Mock OTP provider must not be used when NODE_ENV=production');
+  if (e.NODE_ENV === 'production' && e.OTP_PROVIDER === 'mock' && !e.ALLOW_MOCK_OTP) {
+    throw new Error('Mock OTP provider must not be used when NODE_ENV=production (set ALLOW_MOCK_OTP=true only for local demos)');
   }
   return {
     env: e.NODE_ENV,
@@ -45,7 +47,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     rateLimitEnabled: e.RATE_LIMIT_ENABLED,
     cookieSecure: e.COOKIE_SECURE,
     allowedOrigins: e.ALLOWED_ORIGINS,
-    otp: { provider: e.OTP_PROVIDER, mockCode: e.OTP_MOCK_CODE },
+    otp: { provider: e.OTP_PROVIDER, mockCode: e.OTP_MOCK_CODE, allowMockInProduction: e.ALLOW_MOCK_OTP },
   };
 }
 

@@ -38,7 +38,7 @@ test/
 | Agent | May edit |
 |---|---|
 | Codex (WS-A) | `src/modules/{meetings,candidates,feedback}/**`, `test/{meetings,candidates,feedback}/**` |
-| Cursor (WS-B) | `src/modules/auth/**`, `src/http/auth-guard.ts` (implementation only, keep exports), `test/auth/**` |
+| Cursor (WS-B) | `src/modules/auth/**` (incl. `authenticate.ts`, wired in `server.ts`), `test/auth/**` |
 | Claude (shared) | everything else (`app.ts`, `config.ts`, `db/**`, `drizzle/**`, `http/**`, `observability/**`, `test/helpers/**`, `package.json`, `docs/api-contract.md`) |
 
 Need a shared change (new dependency, schema column, app.ts mount, helper)? Do not make it — describe it in the PR under **Shared change request**.

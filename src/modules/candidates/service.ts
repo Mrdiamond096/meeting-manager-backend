@@ -1,6 +1,7 @@
 import { AppError } from '../../http/errors.js';
 import type { ModuleDeps } from '../deps.js';
-import { toCandidate, toCandidateMeeting } from './mapper.js';
+import { toMeeting } from '../meetings/mapper.js';
+import { toCandidate } from './mapper.js';
 import { candidateRepository } from './repository.js';
 import type { CreateCandidate } from './schemas.js';
 
@@ -17,8 +18,8 @@ export function candidateService(deps: ModuleDeps) {
       const upcoming = await repo.upcoming(id, now);
       const history = await repo.history(id, now);
       return { candidate: toCandidate(candidate),
-        upcoming: upcoming.map((row) => toCandidateMeeting(row, candidate, userId)),
-        history: history.map((row) => toCandidateMeeting(row, candidate, userId)) };
+        upcoming: upcoming.map((meeting) => toMeeting({ meeting, candidate }, userId)),
+        history: history.map((meeting) => toMeeting({ meeting, candidate }, userId)) };
     },
   };
 }

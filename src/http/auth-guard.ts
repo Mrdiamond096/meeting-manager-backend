@@ -1,7 +1,7 @@
 import type { RequestHandler } from 'express';
+import type { USER_ROLES } from '../db/schema/users.js';
 import { AppError } from './errors.js';
 
-export const USER_ROLES = ['USER'] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
 export interface AuthUser {

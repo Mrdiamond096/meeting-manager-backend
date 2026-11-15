@@ -7,7 +7,6 @@ export const REDACT_PATHS = [
   'res.headers["set-cookie"]',
   '*.password',
   '*.newPassword',
-  '*.code',
   '*.otp',
   '*.token',
   '*.email',

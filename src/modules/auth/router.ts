@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { config } from '../../config.js';
-import { rateLimits } from '../../http/rate-limit.js';
+import { byIp, createRateLimiter, rateLimits } from '../../http/rate-limit.js';
 import { parseBody } from '../../http/validate.js';
 import type { ModuleDeps } from '../deps.js';
 import { createOtpProvider, type OtpProvider } from './otp-provider.js';
@@ -39,6 +39,10 @@ export function authRouter(deps: ModuleDeps, options: AuthRouterOptions = {}): R
   const cookieSecure = options.cookieSecure ?? config.cookieSecure;
   const router = Router({ mergeParams: true });
 
+  // Backstop keyed by IP (stable across the new id every resend returns). The per-user budget lives in the service.
+  // rateLimits.otpResend() is keyed by challenge id and restarts on every resend, so it is not used here.
+  const resendByIp = createRateLimiter({ windowMs: 15 * 60_000, limit: 10, key: byIp });
+
   router.post('/register', rateLimits.register(), async (req, res) => {
     const body = parseBody(registerBody, req);
     res.status(201).json(challengeDto(await service.register(body)));
@@ -51,7 +55,7 @@ export function authRouter(deps: ModuleDeps, options: AuthRouterOptions = {}): R
     res.json({ user: userDto(user) });
   });
 
-  router.post('/otp/resend', rateLimits.otpResend(), async (req, res) => {
+  router.post('/otp/resend', resendByIp, async (req, res) => {
     const body = parseBody(resendBody, req);
     res.json(challengeDto(await service.resend(body)));
   });

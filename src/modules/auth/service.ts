@@ -12,6 +12,13 @@ import { createSession } from './session.js';
 /** ADR-009: a challenge lives 5 minutes. */
 export const OTP_TTL_MS = 5 * 60 * 1000;
 
+/**
+ * Resend budget per user and purpose. It counts challenges rows, not challenge ids, because every resend
+ * returns a new id: a limit keyed by id would restart on each resend and never bite.
+ */
+export const RESEND_WINDOW_MS = 15 * 60 * 1000;
+export const MAX_RESENDS_PER_WINDOW = 3;
+
 export interface AuthServiceDeps extends ModuleDeps {
   otp: OtpProvider;
   hasher: PasswordHasher;
@@ -97,6 +104,7 @@ export function createAuthService({ db, now, otp, hasher }: AuthServiceDeps) {
       }
 
       return db.transaction(async (tx) => {
+        await repo.lockUser(tx, challenge.userId); // lock order: user, then challenge (see repo.lockUser)
         const consumed = await repo.consumeChallenge(tx, challenge.id, at);
         if (!consumed) throw otpInvalid(0);
         // The code was delivered to the account's email, so entering it proves the email (also on login).
@@ -109,13 +117,31 @@ export function createAuthService({ db, now, otp, hasher }: AuthServiceDeps) {
 
     /**
      * Replaces an open (or merely expired) challenge with a fresh code.
-     * Wrong-code attempts carry over, so resending cannot be used to get unlimited guesses.
+     * - Wrong-code attempts carry over, so resending cannot be used to get unlimited guesses.
+     * - At most MAX_RESENDS_PER_WINDOW resends per user and purpose per RESEND_WINDOW_MS, counted in the database
+     *   so chaining the new ids cannot restart the budget.
      */
     async resend(input: { challengeId: string }): Promise<IssuedChallenge> {
       const at = now();
+      const known = await repo.findChallenge(db, input.challengeId);
+      if (!known) throw otpInvalid(0);
+
       const { issued, userId, purpose } = await db.transaction(async (tx) => {
+        // Lock order: user, then challenge (see repo.lockUser). It also serializes concurrent resends of one
+        // account, so the count below cannot be raced past the limit.
+        await repo.lockUser(tx, known.userId);
         const retired = await repo.retireChallengeForResend(tx, input.challengeId, at);
         if (!retired) throw otpInvalid(0);
+
+        // The challenge being replaced is itself in the count: one original + MAX_RESENDS resends is the ceiling.
+        const issuedRecently = await repo.countChallengesSince(
+          tx,
+          retired.userId,
+          retired.purpose,
+          new Date(at.getTime() - RESEND_WINDOW_MS),
+        );
+        if (issuedRecently > MAX_RESENDS_PER_WINDOW) throw new AppError('RATE_LIMITED'); // rolls the retire back
+
         const next = await issueChallenge(
           tx,
           { userId: retired.userId, purpose: retired.purpose, attempts: retired.attempts },

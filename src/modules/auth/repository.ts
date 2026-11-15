@@ -33,6 +33,19 @@ export async function upsertUnverifiedUser(
   return row;
 }
 
+/**
+ * LOCK ORDER: every transaction that touches both a user and its challenges takes the user lock first, then the
+ * challenge rows. register already works that way (the user upsert comes first), so verify and resend call this
+ * before they touch a challenge. Taking them in the opposite order lets two requests wait on each other and
+ * PostgreSQL aborts one with 40P01 (deadlock), which would surface as a 500.
+ *
+ * NO KEY UPDATE conflicts with the user updates register/verify perform, but not with the KEY SHARE lock that
+ * inserting a challenge takes through its foreign key.
+ */
+export async function lockUser(ex: Executor, userId: string): Promise<void> {
+  await ex.select({ id: users.id }).from(users).where(eq(users.id, userId)).for('no key update');
+}
+
 export async function findUserById(ex: Executor, id: string): Promise<UserRow | undefined> {
   const [row] = await ex.select().from(users).where(eq(users.id, id));
   return row;
@@ -84,6 +97,22 @@ export async function invalidateOpenChallenges(
     .update(otpChallenges)
     .set({ consumedAt: now })
     .where(and(eq(otpChallenges.userId, userId), eq(otpChallenges.purpose, purpose), isNull(otpChallenges.consumedAt)));
+}
+
+/** Challenges issued to this user for this purpose since `since`, including retired ones (stable across resends). */
+export async function countChallengesSince(
+  ex: Executor,
+  userId: string,
+  purpose: OtpPurpose,
+  since: Date,
+): Promise<number> {
+  const [row] = await ex
+    .select({ n: sql<number>`count(*)::int` })
+    .from(otpChallenges)
+    .where(
+      and(eq(otpChallenges.userId, userId), eq(otpChallenges.purpose, purpose), gt(otpChallenges.createdAt, since)),
+    );
+  return row?.n ?? 0;
 }
 
 /**

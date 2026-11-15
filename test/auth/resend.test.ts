@@ -4,7 +4,7 @@ import { config } from '../../src/config.js';
 import { otpChallenges } from '../../src/db/schema/index.js';
 import type { OtpProvider } from '../../src/modules/auth/otp-provider.js';
 import { MockOtpProvider } from '../../src/modules/auth/otp-provider.js';
-import { OTP_TTL_MS } from '../../src/modules/auth/service.js';
+import { OTP_TTL_MS, RESEND_WINDOW_MS } from '../../src/modules/auth/service.js';
 import { resetDb, testDb } from '../helpers/db.js';
 import { api, createAuthApp, createClock, OTP, registerUser } from './helpers.js';
 
@@ -134,7 +134,90 @@ describe('OTP delivery', () => {
   });
 });
 
-describe('POST /auth/otp/resend rate limit', () => {
+/** Every resend returns a new challenge id, so the budget has to follow the account, not the id. */
+describe('resend budget', () => {
+  beforeEach(resetDb);
+
+  /** Resends repeatedly, always using the id returned by the previous resend (what a client or attacker does). */
+  async function chainResends(app: ReturnType<typeof createAuthApp>, challengeId: string, times: number) {
+    const statuses: number[] = [];
+    let current = challengeId;
+    for (let i = 0; i < times; i += 1) {
+      const res = await api(app).resend({ challengeId: current });
+      statuses.push(res.status);
+      if (res.status === 200) current = res.body.challengeId;
+    }
+    return { statuses, last: current };
+  }
+
+  it('allows 3 resends per account, then 429, even when chaining the newly issued ids', async () => {
+    const app = createAuthApp({ now: createClock().now });
+    const { challengeId } = await registerUser(app);
+
+    const { statuses } = await chainResends(app, challengeId, 8);
+
+    expect(statuses).toEqual([200, 200, 200, 429, 429, 429, 429, 429]);
+    expect(await testDb.select().from(otpChallenges)).toHaveLength(4);
+  });
+
+  it('answers RATE_LIMITED and leaves the latest challenge usable', async () => {
+    const app = createAuthApp({ now: createClock().now });
+    const { challengeId } = await registerUser(app);
+    const { last } = await chainResends(app, challengeId, 3);
+
+    const blocked = await api(app).resend({ challengeId: last });
+    expect(blocked.status).toBe(429);
+    expect(blocked.body.error.code).toBe('RATE_LIMITED');
+
+    // The refused resend rolled back: the challenge it tried to replace still works.
+    expect((await api(app).verify({ challengeId: last, code: OTP })).status).toBe(200);
+  });
+
+  it('is counted in the database, so it holds without the in-memory limiter', async () => {
+    expect(config.rateLimitEnabled).toBe(false);
+    const app = createAuthApp({ now: createClock().now });
+    const { challengeId } = await registerUser(app);
+
+    const { statuses } = await chainResends(app, challengeId, 4);
+
+    expect(statuses.at(-1)).toBe(429);
+  });
+
+  it('frees the budget once the 15 minute window has passed', async () => {
+    const clock = createClock();
+    const app = createAuthApp({ now: clock.now });
+    const { challengeId } = await registerUser(app);
+    const { last } = await chainResends(app, challengeId, 3);
+
+    clock.advance(RESEND_WINDOW_MS - 1);
+    expect((await api(app).resend({ challengeId: last })).status).toBe(429);
+
+    clock.advance(1);
+    expect((await api(app).resend({ challengeId: last })).status).toBe(200);
+  });
+
+  it('keeps one account from spending another account\'s budget', async () => {
+    const app = createAuthApp({ now: createClock().now });
+    const a = await registerUser(app, 'a@example.test');
+    const b = await registerUser(app, 'b@example.test');
+    await chainResends(app, a.challengeId, 4);
+
+    expect((await api(app).resend({ challengeId: b.challengeId })).status).toBe(200);
+  });
+
+  it('never lets simultaneous resends of one account exceed the budget', async () => {
+    const app = createAuthApp({ now: createClock().now });
+    const { challengeId } = await registerUser(app);
+
+    const results = await Promise.all(Array.from({ length: 10 }, () => api(app).resend({ challengeId })));
+
+    // All ten use the same id, so at most one can win, and nothing may fail with a 5xx.
+    expect(results.filter((r) => r.status === 200)).toHaveLength(1);
+    expect(results.filter((r) => r.status >= 500)).toEqual([]);
+  });
+});
+
+describe('POST /auth/otp/resend IP backstop', () => {
   const previous = config.rateLimitEnabled;
   beforeEach(async () => {
     await resetDb();
@@ -144,14 +227,12 @@ describe('POST /auth/otp/resend rate limit', () => {
     config.rateLimitEnabled = previous;
   });
 
-  it('allows 3 resends per challenge id per 15 minutes, then 429', async () => {
+  it('allows 10 requests per IP per 15 minutes whatever challenge ids they carry, then 429', async () => {
     const app = createAuthApp({ now: createClock().now });
-    const { challengeId } = await registerUser(app);
 
     const statuses: number[] = [];
-    for (let i = 0; i < 4; i += 1) statuses.push((await api(app).resend({ challengeId })).status);
+    for (let i = 0; i < 11; i += 1) statuses.push((await api(app).resend({ challengeId: randomUUID() })).status);
 
-    // 1st succeeds and retires the id; 2nd and 3rd are counted but rejected; 4th is throttled.
-    expect(statuses).toEqual([200, 400, 400, 429]);
+    expect(statuses).toEqual([...Array(10).fill(400), 429]);
   });
 });

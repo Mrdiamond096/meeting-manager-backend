@@ -28,6 +28,9 @@ export const byIpAndEmail = (req: Request) => {
   return `${byIp(req)}|${email}`;
 };
 
+export const byChallenge = (req: Request) =>
+  typeof req.body?.challengeId === 'string' ? `challenge|${req.body.challengeId}` : byIp(req);
+
 export const byUser = (req: Request) => req.user?.id ?? byIp(req);
 
 const MINUTE = 60_000;
@@ -37,5 +40,6 @@ export const rateLimits = {
   login: () => createRateLimiter({ windowMs: 15 * MINUTE, limit: 5, key: byIpAndEmail }),
   register: () => createRateLimiter({ windowMs: 60 * MINUTE, limit: 3, key: byIp }),
   forgotPassword: () => createRateLimiter({ windowMs: 60 * MINUTE, limit: 3, key: byIpAndEmail }),
+  otpResend: () => createRateLimiter({ windowMs: 15 * MINUTE, limit: 3, key: byChallenge }),
   write: () => createRateLimiter({ windowMs: MINUTE, limit: 60, key: byUser }),
 };

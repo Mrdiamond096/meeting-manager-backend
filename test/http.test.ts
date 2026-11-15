@@ -37,6 +37,22 @@ describe('http infrastructure', () => {
     expect(res.body.error.code).toBe('INVALID_JSON');
   });
 
+  it('rejects non-GET requests from a foreign Origin with 403', async () => {
+    const res = await request(createTestApp())
+      .post('/api/v1/auth/anything')
+      .set('Origin', 'https://evil.example')
+      .send({});
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('ORIGIN_NOT_ALLOWED');
+  });
+
+  it('lets allowed origins, missing Origin and GET through the origin guard', async () => {
+    const app = createTestApp();
+    expect((await request(app).post('/api/v1/auth/x').set('Origin', 'http://localhost:8080').send({})).status).toBe(404);
+    expect((await request(app).post('/api/v1/auth/x').send({})).status).toBe(404);
+    expect((await request(app).get('/api/v1/auth/x').set('Origin', 'https://evil.example')).status).toBe(404);
+  });
+
   it('maps bodies over 100kb to 413', async () => {
     const res = await request(createTestApp())
       .post('/api/v1/auth/anything')
@@ -49,6 +65,10 @@ describe('http infrastructure', () => {
 describe('config', () => {
   it('refuses the mock OTP provider in production', () => {
     expect(() => loadConfig({ NODE_ENV: 'production', OTP_PROVIDER: 'mock' })).toThrow(/Mock OTP/);
+  });
+
+  it('allows the mock in production only with ALLOW_MOCK_OTP=true (local Docker demo)', () => {
+    expect(loadConfig({ NODE_ENV: 'production', ALLOW_MOCK_OTP: 'true' }).otp.allowMockInProduction).toBe(true);
   });
 
   it('rejects invalid values without echoing them', () => {

@@ -28,8 +28,13 @@ export const byIpAndEmail = (req: Request) => {
   return `${byIp(req)}|${email}`;
 };
 
-export const byChallenge = (req: Request) =>
-  typeof req.body?.challengeId === 'string' ? `challenge|${req.body.challengeId}` : byIp(req);
+const UUID = /^[0-9a-f-]{36}$/i;
+
+/** Only uuid-shaped ids become keys, so arbitrary bodies cannot grow the in-memory store. */
+export const byChallenge = (req: Request) => {
+  const id: unknown = req.body?.challengeId;
+  return typeof id === 'string' && UUID.test(id) ? `challenge|${id}` : byIp(req);
+};
 
 export const byUser = (req: Request) => req.user?.id ?? byIp(req);
 

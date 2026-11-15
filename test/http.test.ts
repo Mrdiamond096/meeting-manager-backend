@@ -16,7 +16,7 @@ describe('http infrastructure', () => {
 
   it('passes the guard with a stubbed session (loginAs)', async () => {
     const { app } = await loginAs();
-    const res = await request(app).get('/api/v1/candidates/unknown-route');
+    const res = await request(app).get('/api/v1/candidates/unknown/route');
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe('NOT_FOUND');
   });

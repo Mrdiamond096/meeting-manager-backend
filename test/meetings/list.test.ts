@@ -118,3 +118,21 @@ describe('meeting list and calendar', () => {
     expect(results.map((r) => r.status)).toEqual([400, 400, 400, 400, 400]);
   });
 });
+
+describe('range view validation messages', () => {
+  beforeEach(resetDb);
+
+  it('reports the missing range bound instead of an unknown view key', async () => {
+    const { app } = await loginAs();
+    const res = await request(app).get('/api/v1/meetings?view=range&to=2026-11-20T00:00:00Z');
+    expect(res.status).toBe(400);
+    expect(res.body.error.details).toEqual([expect.objectContaining({ path: 'query.from' })]);
+  });
+
+  it('rejects an unknown view value', async () => {
+    const { app } = await loginAs();
+    const res = await request(app).get('/api/v1/meetings?view=week&from=2026-11-01T00:00:00Z&to=2026-11-02T00:00:00Z');
+    expect(res.status).toBe(400);
+    expect(res.body.error.details[0].path).toBe('query.view');
+  });
+});

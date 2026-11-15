@@ -47,17 +47,26 @@ const pageQuery = z.object({
   pageSize: z.string().regex(/^\d+$/).pipe(pagination.pageSize).default('10'),
 }).strict();
 const rangeQuery = z.object({ ...filters, view: z.literal('range'), from: instant, to: instant }).strict();
-export const listSchema = z.union([rangeQuery, pageQuery]).superRefine((v, ctx) => {
+const rangeChecks = (v: { from?: Date; to?: Date }, ctx: z.RefinementCtx) => {
   if (v.from && v.to && v.from >= v.to) {
     ctx.addIssue({ code: 'custom', path: ['to'], message: 'Must be after from' });
   }
-  if ('view' in v && v.to.getTime() - v.from.getTime() > 42 * 86_400_000) {
-    ctx.addIssue({ code: 'custom', path: ['to'], message: 'Range must not exceed 42 days' });
-  }
-  if (!('view' in v) && !Number.isSafeInteger((v.page - 1) * v.pageSize)) {
+};
+const pageListSchema = pageQuery.superRefine((v, ctx) => {
+  rangeChecks(v, ctx);
+  if (!Number.isSafeInteger((v.page - 1) * v.pageSize)) {
     ctx.addIssue({ code: 'custom', path: ['page'], message: 'Page offset is too large' });
   }
 });
+const rangeListSchema = rangeQuery.superRefine((v, ctx) => {
+  rangeChecks(v, ctx);
+  if (v.to.getTime() - v.from.getTime() > 42 * 86_400_000) {
+    ctx.addIssue({ code: 'custom', path: ['to'], message: 'Range must not exceed 42 days' });
+  }
+});
+/** Picks the schema by `view` so a bad range query reports its own missing fields, not "unknown key view". */
+export const listSchemaFor = (query: Record<string, unknown>) =>
+  query.view === undefined ? pageListSchema : rangeListSchema;
 export const meetingState = z.object({
   dueDate: z.date(), endAt: z.date().nullable(),
   meetingType: z.enum(MEETING_TYPES).nullable(), provider: z.enum(MEETING_PROVIDERS).nullable(),
@@ -71,4 +80,4 @@ export const meetingState = z.object({
 });
 export type CreateMeeting = z.output<typeof createSchema>;
 export type PatchMeeting = z.output<typeof patchSchema>;
-export type ListMeetings = z.output<typeof listSchema>;
+export type ListMeetings = z.output<typeof pageListSchema> | z.output<typeof rangeListSchema>;

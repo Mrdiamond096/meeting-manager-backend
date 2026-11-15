@@ -34,17 +34,18 @@ test/
 - ESM imports end with `.js`.
 - Tests: `beforeEach(resetDb)`; `const { app, user } = await loginAs()` for authenticated requests; supertest against the app.
 
-## Ownership
-| Agent | May edit |
-|---|---|
-| Codex (WS-A) | `src/modules/{meetings,candidates,feedback}/**`, `test/{meetings,candidates,feedback}/**` |
-| Cursor (WS-B) | `src/modules/auth/**` (incl. `authenticate.ts`, wired in `server.ts`), `test/auth/**` |
-| Claude (shared) | everything else (`app.ts`, `config.ts`, `db/**`, `drizzle/**`, `http/**`, `observability/**`, `test/helpers/**`, `package.json`, `docs/api-contract.md`) |
+## Ownership (roles v3, 16 Nov 2026)
+| Agent | Role | May edit |
+|---|---|---|
+| Cursor | Backend owner | everything in this repo, including shared files (`app.ts`, `config.ts`, `db/**`, `drizzle/**`, `http/**`, `observability/**`, `test/helpers/**`, `package.json`, `docs/api-contract.md`) |
+| Codex | Reviewer + docs | `README.md` and docs only; never `src/**`, `test/**`, `drizzle/**` or the contract. Review findings go in PR comments. |
+| Claude | Frontend owner | nothing here; asks for API changes through a "Contract change request" |
 
-Need a shared change (new dependency, schema column, app.ts mount, helper)? Do not make it — describe it in the PR under **Shared change request**.
+Contract changes: separate PR titled `contract: ...`, reviewed by Codex, approved by the user, announced to the frontend.
 
 ## Workflow
-- Branch from `main`: `feature/ws-a-<n>-<desc>` / `feature/ws-b-<n>-<desc>`; rebase on `main` before opening the PR.
+- Branch from `main`: `feature/ws-b-<n>-<desc>`, `fix/<desc>` or `docs/<desc>`; rebase on `main` before opening the PR.
+- Every PR is reviewed by Codex before the user merges it.
 - Commits: Conventional Commits in English, e.g. `feat(meetings): add optimistic version check`.
 - Done = `npm run typecheck && npm test && npm run build` green (tests need Postgres: `docker compose up -d db`).
 - PR ≤ ~400 non-test lines; description: what, tests, trade-offs, open questions. Never commit `.env` or secrets; never force-push `main`.

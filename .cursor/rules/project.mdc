@@ -5,8 +5,9 @@ alwaysApply: true
 Follow `AGENTS.md` in the repo root — it is the single source of rules (stack, structure, patterns, ownership, workflow).
 
 Key points:
-- `docs/api-contract.md` is the source of truth; never change it in a feature PR.
-- Cursor owns WS-B Auth only: `src/modules/auth/**` (implement `createAuthenticate` in `authenticate.ts`) and `test/auth/**`. Origin guard and auth guard are shared and already mounted.
+- Cursor owns the whole backend, including shared files and `docs/api-contract.md`.
+- Contract changes go in a separate `contract: ...` PR; the frontend (Claude) depends on it.
 - Use `AppError`, `parseBody/parseQuery/parseParams`, `deps.db`, `deps.now()`, `req.log`; ESM `.js` imports.
-- Never log passwords, OTP codes, cookies, tokens, emails or bodies. No JWT. No new dependencies without asking.
-- Done = typecheck + tests + build green; Conventional Commits in English.
+- Never log passwords, OTP codes, cookies, tokens, emails or bodies. No JWT.
+- Never edit merged migrations; generate new ones with `npm run db:generate`.
+- Done = typecheck + tests + build green; Conventional Commits in English; Codex reviews every PR.

@@ -1,3 +1,4 @@
+import { pino } from 'pino';
 import { z } from 'zod';
 
 const bool = z
@@ -26,15 +27,29 @@ const envSchema = z.object({
 
 export type Config = ReturnType<typeof loadConfig>;
 
+/** Invalid environment. `fields` holds variable names only, never their values (they may be secrets). */
+export class ConfigError extends Error {
+  constructor(
+    message: string,
+    readonly fields: string[] = [],
+  ) {
+    super(message);
+    this.name = 'ConfigError';
+  }
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   const parsed = envSchema.safeParse(env);
   if (!parsed.success) {
-    const fields = parsed.error.issues.map((i) => i.path.join('.')).join(', ');
-    throw new Error(`Invalid environment configuration: ${fields}`);
+    const fields = [...new Set(parsed.error.issues.map((i) => i.path.join('.')))];
+    throw new ConfigError(`Invalid environment configuration: ${fields.join(', ')}`, fields);
   }
   const e = parsed.data;
   if (e.NODE_ENV === 'production' && e.OTP_PROVIDER === 'mock' && !e.ALLOW_MOCK_OTP) {
-    throw new Error('Mock OTP provider must not be used when NODE_ENV=production (set ALLOW_MOCK_OTP=true only for local demos)');
+    throw new ConfigError(
+      'Mock OTP provider must not be used when NODE_ENV=production (set ALLOW_MOCK_OTP=true only for local demos)',
+      ['OTP_PROVIDER', 'ALLOW_MOCK_OTP'],
+    );
   }
   return {
     env: e.NODE_ENV,
@@ -51,4 +66,22 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   };
 }
 
-export const config = loadConfig();
+/**
+ * The process-wide config. A bad environment is a `fatal` event (ADR-012): one JSON line on stdout like every other
+ * log, then exit 1, instead of an unformatted stack trace the log pipeline cannot parse. The real logger needs the
+ * config, so this uses a bare one with the same base fields.
+ */
+function loadProcessConfig() {
+  try {
+    return loadConfig();
+  } catch (error) {
+    const log = pino({ base: { service: 'api' } }, pino.destination({ dest: 1, sync: true }));
+    log.fatal(
+      { fields: error instanceof ConfigError ? error.fields : [] },
+      error instanceof Error ? error.message : 'Invalid environment configuration',
+    );
+    process.exit(1);
+  }
+}
+
+export const config = loadProcessConfig();

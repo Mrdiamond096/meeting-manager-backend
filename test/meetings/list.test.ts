@@ -83,6 +83,37 @@ describe('meeting list and calendar', () => {
     expect(res.body.items.map((m: { title: string }) => m.title)).toEqual(['Inclusive start']);
   });
 
+  it('returns meetings that overlap the range, including ones that started before it', async () => {
+    const { app, user } = await loginAs();
+    const at = (iso: string) => new Date(iso);
+    const week = { from: '2026-11-16T00:00:00Z', to: '2026-11-23T00:00:00Z' };
+    await testDb.meeting.createMany({ data: [
+      // Sat 23:00 -> Mon 01:00: starts two days before the range and is still running in it.
+      { title: 'Weekend overnight', dueDate: at('2026-11-14T23:00:00Z'), endAt: at('2026-11-16T01:00:00Z') },
+      { title: 'Ends exactly at from', dueDate: at('2026-11-15T22:00:00Z'), endAt: at('2026-11-16T00:00:00Z') },
+      { title: 'No end, 20 min before', dueDate: at('2026-11-15T23:40:00Z') },
+      { title: 'No end, 40 min before', dueDate: at('2026-11-15T23:20:00Z') },
+      { title: 'Inside', dueDate: at('2026-11-18T10:00:00Z'), endAt: at('2026-11-18T11:00:00Z') },
+      { title: 'Runs past to', dueDate: at('2026-11-22T23:00:00Z'), endAt: at('2026-11-23T02:00:00Z') },
+      { title: 'Starts at to', dueDate: at('2026-11-23T00:00:00Z'), endAt: at('2026-11-23T01:00:00Z') },
+      { title: 'Spans the whole range', dueDate: at('2026-11-10T00:00:00Z'), endAt: at('2026-11-30T00:00:00Z'), createdBy: user.id },
+    ] });
+    const res = await request(app).get(root).query({ view: 'range', ...week });
+    expect(res.status).toBe(200);
+    expect(res.body.items.map((m: { title: string }) => m.title)).toEqual([
+      'Spans the whole range', 'Weekend overnight', 'No end, 20 min before', 'Inside', 'Runs past to',
+    ]);
+    const mine = await request(app).get(root).query({ view: 'range', ...week, mine: 'true' });
+    expect(mine.body.items.map((m: { title: string }) => m.title)).toEqual(['Spans the whole range']);
+  });
+
+  it('keeps the paged list filtered on the start time only', async () => {
+    const { app } = await loginAs();
+    await testDb.meeting.create({ data: { title: 'Started before', dueDate: new Date('2026-11-14T23:00:00Z'), endAt: new Date('2026-11-16T01:00:00Z') } });
+    const res = await request(app).get(root).query({ from: '2026-11-16T00:00:00Z' });
+    expect(res.body.total).toBe(0);
+  });
+
   it('returns 500 matches but rejects 501 instead of truncating the calendar', async () => {
     const { app, user } = await loginAs();
     await testDb.meeting.createMany({ data: Array.from({ length: 500 }, (_, i) => ({

@@ -1,6 +1,6 @@
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { resetDb, testDb } from '../helpers/db.js';
-import { api, createAuthApp, createClock, OTP, PASSWORD, registerUser, serve, signIn } from './helpers.js';
+import { api, createAuthApp, createClock, OTP, PASSWORD, registerUser, signIn } from './helpers.js';
 
 const ACCOUNTS = 12;
 const ROUNDS = 4;
@@ -11,11 +11,8 @@ const ROUNDS = 4;
  * The interleaving is timing dependent, so each round fires many accounts at once.
  */
 describe('lock ordering under concurrency', () => {
-  const server = serve(createAuthApp({ now: createClock().now }));
+  const server = createAuthApp({ now: createClock().now });
   beforeEach(resetDb);
-  afterAll(() => {
-    server.close();
-  });
 
   it('never answers 500 when register races verify on the same account', async () => {
     const results: { register: number; verify: number }[] = [];

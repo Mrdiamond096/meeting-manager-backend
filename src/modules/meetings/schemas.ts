@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { CANDIDATE_POSITIONS, MEETING_PROVIDERS, MEETING_STATUSES, MEETING_TYPES } from '../../db/constants.js';
-import { instant, pagination } from '../../http/validate.js';
+import { digits, instant, pagination } from '../../http/validate.js';
 
 const positiveVersion = z.number().int().positive().safe();
 const uuid = z.string().uuid();
@@ -38,7 +38,7 @@ export const patchSchema = z.object({
   .refine(eitherCandidate, eitherCandidateIssue);
 export const cancelSchema = z.object({ version: positiveVersion }).strict();
 export const deleteQuery = z.object({
-  version: z.string().regex(/^\d+$/).pipe(z.coerce.number().int().positive().safe()),
+  version: digits.pipe(z.number().int().positive().safe()),
 }).strict();
 
 const filters = {
@@ -48,8 +48,8 @@ const filters = {
 };
 const pageQuery = z.object({
   ...filters, candidateId: uuid.optional(),
-  page: z.string().regex(/^\d+$/).pipe(pagination.page).pipe(z.number().safe()).default('1'),
-  pageSize: z.string().regex(/^\d+$/).pipe(pagination.pageSize).default('10'),
+  page: digits.pipe(pagination.page).prefault('1'),
+  pageSize: digits.pipe(pagination.pageSize).prefault('10'),
 }).strict();
 const rangeQuery = z.object({ ...filters, view: z.literal('range'), from: instant, to: instant }).strict();
 const rangeChecks = (v: { from?: Date; to?: Date }, ctx: z.RefinementCtx) => {
@@ -57,13 +57,20 @@ const rangeChecks = (v: { from?: Date; to?: Date }, ctx: z.RefinementCtx) => {
     ctx.addIssue({ code: 'custom', path: ['to'], message: 'Must be after from' });
   }
 };
+/**
+ * Zod 4 runs object-level refinements even when a field failed its format check, with the raw input in
+ * place of the parsed value (a bad `from` is still a string). Cross-field rules need parsed values, so
+ * they only run once every field is valid; the field's own issue is what the client should see.
+ */
 const pageListSchema = pageQuery.superRefine((v, ctx) => {
+  if (ctx.issues.length > 0) return;
   rangeChecks(v, ctx);
   if (!Number.isSafeInteger((v.page - 1) * v.pageSize)) {
     ctx.addIssue({ code: 'custom', path: ['page'], message: 'Page offset is too large' });
   }
 });
 const rangeListSchema = rangeQuery.superRefine((v, ctx) => {
+  if (ctx.issues.length > 0) return;
   rangeChecks(v, ctx);
   if (v.to.getTime() - v.from.getTime() > 42 * 86_400_000) {
     ctx.addIssue({ code: 'custom', path: ['to'], message: 'Range must not exceed 42 days' });

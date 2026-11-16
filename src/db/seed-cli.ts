@@ -19,7 +19,7 @@ export const DEFAULT_DEMO_PASSWORD = 'demo-password-123';
 
 const log = pino({ base: { service: 'seed' } }, pino.destination({ dest: 1, sync: true }));
 
-function parseSetting(name: string, schema: z.ZodType<string, z.ZodTypeDef, string>, value: string): string {
+function parseSetting(name: string, schema: z.ZodType<string, string>, value: string): string {
   const parsed = schema.safeParse(value);
   if (!parsed.success) throw new Error(`${name} is not valid: ${parsed.error.issues.map((i) => i.message).join('; ')}`);
   return parsed.data;

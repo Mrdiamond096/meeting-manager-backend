@@ -8,6 +8,10 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    // Tests take well under a second; the limit only catches a hang. A busy laptop or CI runner can stall a trivial
+    // database round trip for more than the default 5s, which showed up as random failures.
+    testTimeout: 20_000,
+    hookTimeout: 30_000,
     globalSetup: ['test/helpers/global-setup.ts'],
     // Tests share one database and truncate it between cases.
     fileParallelism: false,

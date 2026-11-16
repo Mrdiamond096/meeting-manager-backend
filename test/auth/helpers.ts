@@ -1,4 +1,3 @@
-import { createServer, type Server } from 'node:http';
 import { Writable } from 'node:stream';
 import express, { type Express } from 'express';
 import { pino } from 'pino';
@@ -65,15 +64,8 @@ export function createAuthApp({ now, logger, ...router }: AuthAppOptions): Expre
   return app;
 }
 
-/**
- * supertest starts a throwaway server per `request(app)`. Firing dozens at once makes the occasional response
- * never arrive (about 1 run in 10), so concurrent tests talk to one long-lived server instead.
- */
-export function serve(app: Express): Server {
-  return createServer(app).listen(0);
-}
-
-export type Target = Express | Server;
+/** Anything `request()` accepts. The shared test server (test/helpers/supertest.ts) handles Express apps. */
+export type Target = Express;
 
 export const api = (app: Target) => ({
   register: (body: unknown) => request(app).post(`${BASE}/register`).send(body as object),

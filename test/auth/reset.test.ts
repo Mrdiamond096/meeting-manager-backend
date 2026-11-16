@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { config } from '../../src/config.js';
 import type { OtpProvider } from '../../src/modules/auth/otp-provider.js';
 import { createPasswordHasher, type PasswordHasher } from '../../src/modules/auth/password.js';
@@ -12,7 +12,6 @@ import {
   OTP,
   PASSWORD,
   registerUser,
-  serve,
   signIn,
 } from './helpers.js';
 
@@ -338,12 +337,9 @@ describe('login racing a password reset', () => {
 describe('password reset under concurrency', () => {
   const clock = createClock();
   const app = createAuthApp({ now: clock.now });
-  const server = serve(app);
+  const server = app;
 
   beforeEach(resetDb);
-  afterAll(() => {
-    server.close();
-  });
 
   it('lets exactly one of several simultaneous resets with the same challenge win', async () => {
     await signIn(server, email);

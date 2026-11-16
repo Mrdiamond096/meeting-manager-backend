@@ -8,7 +8,7 @@ import type { PasswordHasher } from './password.js';
 import * as repo from './repository.js';
 import { MAX_OTP_ATTEMPTS, type Executor, type UserRow } from './repository.js';
 import { MAX_PASSWORD_BYTES } from './schemas.js';
-import { createSession, deleteSessionByToken } from './session.js';
+import { createSession, deleteSessionByToken, deleteSessionsOfUser } from './session.js';
 
 /** ADR-009: a challenge lives 5 minutes. */
 export const OTP_TTL_MS = 5 * 60 * 1000;
@@ -19,6 +19,13 @@ export const OTP_TTL_MS = 5 * 60 * 1000;
  */
 export const RESEND_WINDOW_MS = 15 * 60 * 1000;
 export const MAX_RESENDS_PER_WINDOW = 3;
+
+/**
+ * Reset codes issued per user per hour, counted in the database. The per-IP+email limiter in the router stops one
+ * client; this stops many clients from mailing codes to one victim.
+ */
+export const RESET_WINDOW_MS = 60 * 60 * 1000;
+export const MAX_RESETS_PER_WINDOW = 5;
 
 export interface AuthServiceDeps extends ModuleDeps {
   otp: OtpProvider;
@@ -105,6 +112,75 @@ export function createAuthService({ db, now, otp, hasher }: AuthServiceDeps) {
       return { challengeId: issued.challengeId, expiresAt: issued.expiresAt };
     },
 
+    /**
+     * Starts a password reset. The answer is the same shape whether or not the email has an account, and for a
+     * known account whose reset budget is used up: the fake challenge id simply never verifies.
+     */
+    async forgotPassword(log: Logger, input: { email: string }): Promise<IssuedChallenge> {
+      const at = now();
+      const fake = (): IssuedChallenge => ({ challengeId: randomUUID(), expiresAt: new Date(at.getTime() + OTP_TTL_MS) });
+
+      const user = await repo.findUserByEmail(db, input.email);
+      if (!user) return fake();
+
+      const issued = await db.$transaction(async (tx) => {
+        await repo.lockUser(tx, user.id); // lock order: user, then challenge (see repo.lockUser)
+        const recent = await repo.countChallengesSince(tx, user.id, 'RESET', new Date(at.getTime() - RESET_WINDOW_MS));
+        if (recent >= MAX_RESETS_PER_WINDOW) return undefined;
+        await repo.invalidateOpenChallenges(tx, user.id, 'RESET', at);
+        return issueChallenge(tx, { userId: user.id, purpose: 'RESET' }, at);
+      });
+      if (!issued) {
+        log.warn({ userId: user.id }, 'password reset budget used up, no code issued');
+        return fake();
+      }
+
+      await otp.deliver({ userId: user.id, purpose: 'RESET' }, issued.code);
+      return { challengeId: issued.challengeId, expiresAt: issued.expiresAt };
+    },
+
+    /**
+     * Finishes a reset: checks the RESET code, replaces the password and signs the user out everywhere.
+     * Every failure is a plain OTP_INVALID without attemptsRemaining. A counter would tell a real challenge
+     * from the fake one forgotPassword hands out for unknown emails.
+     */
+    async resetPassword(log: Logger, input: { challengeId: string; code: string; newPassword: string }): Promise<void> {
+      const at = now();
+      const invalid = () => new AppError('OTP_INVALID');
+      const challenge = await repo.findChallenge(db, input.challengeId);
+      const open =
+        challenge &&
+        challenge.purpose === 'RESET' &&
+        !challenge.consumedAt &&
+        challenge.expiresAt > at &&
+        challenge.attempts < MAX_OTP_ATTEMPTS;
+      if (!challenge || !open) throw invalid();
+
+      if (!otpCodeMatches(challenge.codeHash, challenge.id, input.code)) {
+        const attempts = await repo.recordFailedAttempt(db, challenge.id, at);
+        if (attempts !== undefined && attempts >= MAX_OTP_ATTEMPTS) {
+          log.warn(
+            { challengeId: challenge.id, userId: challenge.userId, purpose: challenge.purpose },
+            'otp challenge locked after too many wrong codes',
+          );
+        }
+        throw invalid();
+      }
+
+      // Slow, so it runs before the transaction instead of while the user row is locked.
+      const passwordHash = await hasher.hash(input.newPassword);
+      await db.$transaction(async (tx) => {
+        await repo.lockUser(tx, challenge.userId); // lock order: user, then challenge (see repo.lockUser)
+        const consumed = await repo.consumeChallenge(tx, challenge.id, at);
+        if (!consumed) throw invalid();
+        await repo.updatePasswordHash(tx, consumed.userId, passwordHash, at);
+        // The code went to the account's email, so using it proves the email (as on login).
+        await repo.markEmailVerified(tx, consumed.userId, at);
+        await repo.invalidateAllOpenChallenges(tx, consumed.userId, at);
+        await deleteSessionsOfUser(tx, consumed.userId);
+      });
+    },
+
     /** Idempotent: an absent, malformed or unknown token is not an error. */
     async logout(token: string | undefined): Promise<void> {
       if (token) await deleteSessionByToken(db, token);
@@ -161,7 +237,9 @@ export function createAuthService({ db, now, otp, hasher }: AuthServiceDeps) {
     async resend(input: { challengeId: string }): Promise<IssuedChallenge> {
       const at = now();
       const known = await repo.findChallenge(db, input.challengeId);
-      if (!known) throw otpInvalid(0);
+      // A reset challenge is never resent: forgot answers with a fake id for unknown emails, and a working
+      // resend would tell the two apart. The user asks for a new code through forgot instead.
+      if (!known || known.purpose === 'RESET') throw otpInvalid(0);
 
       const { issued, userId, purpose } = await db.$transaction(async (tx) => {
         // Lock order: user, then challenge (see repo.lockUser). It also serializes concurrent resends of one

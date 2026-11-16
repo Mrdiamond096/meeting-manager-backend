@@ -73,6 +73,11 @@ export async function deleteSessionIfInactive(ex: Executor, id: string, now: Dat
   return count > 0;
 }
 
+/** Signs the user out everywhere (password reset). */
+export async function deleteSessionsOfUser(ex: Executor, userId: string): Promise<void> {
+  await ex.session.deleteMany({ where: { userId } });
+}
+
 export async function deleteSessionByToken(ex: Executor, token: string): Promise<void> {
   await ex.session.deleteMany({ where: { tokenHash: hashSessionToken(token) } });
 }

@@ -6,7 +6,7 @@ import { parseBody } from '../../http/validate.js';
 import type { ModuleDeps } from '../deps.js';
 import { createOtpProvider, type OtpProvider } from './otp-provider.js';
 import { createPasswordHasher, type PasswordHasher } from './password.js';
-import { loginBody, registerBody, resendBody, verifyBody } from './schemas.js';
+import { forgotBody, loginBody, registerBody, resendBody, resetBody, verifyBody } from './schemas.js';
 import { createAuthService, type IssuedChallenge } from './service.js';
 import type { UserRow } from './repository.js';
 import { clearSessionCookie, readSessionToken, setSessionCookie } from './session.js';
@@ -45,6 +45,9 @@ export function authRouter(deps: ModuleDeps, options: AuthRouterOptions = {}): R
   // rateLimits.otpResend() is keyed by challenge id and restarts on every resend, so it is not used here.
   const resendByIp = createRateLimiter({ windowMs: 15 * 60_000, limit: 10, key: byIp });
 
+  // Each successful reset costs a bcrypt hash; the per-challenge attempt cap does not cover that.
+  const resetByIp = createRateLimiter({ windowMs: 15 * 60_000, limit: 10, key: byIp });
+
   router.post('/register', rateLimits.register(), async (req, res) => {
     const body = parseBody(registerBody, req);
     res.status(201).json(challengeDto(await service.register(body)));
@@ -65,6 +68,17 @@ export function authRouter(deps: ModuleDeps, options: AuthRouterOptions = {}): R
   router.post('/otp/resend', resendByIp, async (req, res) => {
     const body = parseBody(resendBody, req);
     res.json(challengeDto(await service.resend(body)));
+  });
+
+  router.post('/password/forgot', rateLimits.forgotPassword(), async (req, res) => {
+    const body = parseBody(forgotBody, req);
+    res.status(202).json(challengeDto(await service.forgotPassword(req.log, body)));
+  });
+
+  router.post('/password/reset', resetByIp, async (req, res) => {
+    const body = parseBody(resetBody, req);
+    await service.resetPassword(req.log, body);
+    res.status(204).end();
   });
 
   router.post('/logout', async (req, res) => {

@@ -97,6 +97,15 @@ export async function invalidateOpenChallenges(
   await ex.otpChallenge.updateMany({ where: { userId, purpose, consumedAt: null }, data: { consumedAt: now } });
 }
 
+/** Makes every open challenge of this user unusable, whatever its purpose (the password just changed). */
+export async function invalidateAllOpenChallenges(ex: Executor, userId: string, now: Date): Promise<void> {
+  await ex.otpChallenge.updateMany({ where: { userId, consumedAt: null }, data: { consumedAt: now } });
+}
+
+export async function updatePasswordHash(ex: Executor, userId: string, passwordHash: string, now: Date): Promise<void> {
+  await ex.user.updateMany({ where: { id: userId }, data: { passwordHash, updatedAt: now } });
+}
+
 /** Challenges issued to this user for this purpose since `since`, including retired ones (stable across resends). */
 export async function countChallengesSince(
   ex: Executor,

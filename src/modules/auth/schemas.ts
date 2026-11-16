@@ -27,3 +27,7 @@ export const loginBody = z.object({ email, password: z.string().min(1).max(1024)
 export const verifyBody = z.object({ challengeId, code: otpCode }).strict();
 
 export const resendBody = z.object({ challengeId }).strict();
+
+export const forgotBody = z.object({ email }).strict();
+
+export const resetBody = z.object({ challengeId, code: otpCode, newPassword: password }).strict();

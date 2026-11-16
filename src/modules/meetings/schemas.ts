@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { CANDIDATE_POSITIONS, MEETING_PROVIDERS, MEETING_STATUSES, MEETING_TYPES } from '../../db/constants.js';
-import { instant, pagination } from '../../http/validate.js';
+import { digits, instant, pagination } from '../../http/validate.js';
 
 const positiveVersion = z.number().int().positive().safe();
 const uuid = z.string().uuid();
@@ -38,7 +38,7 @@ export const patchSchema = z.object({
   .refine(eitherCandidate, eitherCandidateIssue);
 export const cancelSchema = z.object({ version: positiveVersion }).strict();
 export const deleteQuery = z.object({
-  version: z.string().regex(/^\d+$/).pipe(z.coerce.number().int().positive().safe()),
+  version: digits.pipe(z.number().int().positive().safe()),
 }).strict();
 
 const filters = {
@@ -48,8 +48,8 @@ const filters = {
 };
 const pageQuery = z.object({
   ...filters, candidateId: uuid.optional(),
-  page: z.string().regex(/^\d+$/).pipe(pagination.page).pipe(z.number().safe()).default('1'),
-  pageSize: z.string().regex(/^\d+$/).pipe(pagination.pageSize).default('10'),
+  page: digits.pipe(pagination.page).prefault('1'),
+  pageSize: digits.pipe(pagination.pageSize).prefault('10'),
 }).strict();
 const rangeQuery = z.object({ ...filters, view: z.literal('range'), from: instant, to: instant }).strict();
 const rangeChecks = (v: { from?: Date; to?: Date }, ctx: z.RefinementCtx) => {

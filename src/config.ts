@@ -11,19 +11,19 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url().default('postgres://meeting:meeting@localhost:5432/meeting'),
   DB_STATEMENT_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
-  LOG_PRETTY: bool.default('false'),
+  LOG_PRETTY: bool.prefault('false'),
   APP_VERSION: z.string().default('dev'),
-  RATE_LIMIT_ENABLED: bool.default('true'),
-  COOKIE_SECURE: bool.default('false'),
+  RATE_LIMIT_ENABLED: bool.prefault('true'),
+  COOKIE_SECURE: bool.prefault('false'),
   ALLOWED_ORIGINS: z
     .string()
     .default('http://localhost:8080,http://localhost:3001')
     .transform((v) => v.split(',').map((o) => o.trim()).filter(Boolean)),
   OTP_PROVIDER: z.enum(['mock']).default('mock'),
   /** Explicit opt-in for the local Docker demo, which runs the production image. */
-  ALLOW_MOCK_OTP: bool.default('false'),
+  ALLOW_MOCK_OTP: bool.prefault('false'),
   /** Only `make seed` sets this, for one `docker compose exec`. Never set it on the server itself. */
-  ALLOW_DEMO_SEED: bool.default('false'),
+  ALLOW_DEMO_SEED: bool.prefault('false'),
   OTP_MOCK_CODE: z.string().regex(/^\d{6}$/).default('112233'),
 });
 

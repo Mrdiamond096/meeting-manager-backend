@@ -68,7 +68,7 @@ export function createAuthService({ db, now, otp, hasher }: AuthServiceDeps) {
       // Hash first so a taken email costs the same time as a free one.
       const passwordHash = await hasher.hash(input.password);
 
-      const { issued, userId } = await db.transaction(async (tx) => {
+      const { issued, userId } = await db.$transaction(async (tx) => {
         const user = await repo.upsertUnverifiedUser(tx, { email: input.email, passwordHash, now: at });
         if (!user) throw new AppError('EMAIL_TAKEN');
         await repo.invalidateOpenChallenges(tx, user.id, 'REGISTER', at);
@@ -103,7 +103,7 @@ export function createAuthService({ db, now, otp, hasher }: AuthServiceDeps) {
         throw otpInvalid(MAX_OTP_ATTEMPTS - attempts);
       }
 
-      return db.transaction(async (tx) => {
+      return db.$transaction(async (tx) => {
         await repo.lockUser(tx, challenge.userId); // lock order: user, then challenge (see repo.lockUser)
         const consumed = await repo.consumeChallenge(tx, challenge.id, at);
         if (!consumed) throw otpInvalid(0);
@@ -126,7 +126,7 @@ export function createAuthService({ db, now, otp, hasher }: AuthServiceDeps) {
       const known = await repo.findChallenge(db, input.challengeId);
       if (!known) throw otpInvalid(0);
 
-      const { issued, userId, purpose } = await db.transaction(async (tx) => {
+      const { issued, userId, purpose } = await db.$transaction(async (tx) => {
         // Lock order: user, then challenge (see repo.lockUser). It also serializes concurrent resends of one
         // account, so the count below cannot be raced past the limit.
         await repo.lockUser(tx, known.userId);

@@ -1,7 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { otpChallenges, sessions, users } from '../../src/db/schema/index.js';
 import { hashOtpCode } from '../../src/modules/auth/otp-code.js';
 import { hashSessionToken } from '../../src/modules/auth/session.js';
 import { OTP_TTL_MS } from '../../src/modules/auth/service.js';
@@ -38,9 +36,9 @@ describe('POST /auth/otp/verify', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ user: { id: expect.any(String), email, role: 'USER' } });
-    const [user] = await testDb.select().from(users);
+    const [user] = await testDb.user.findMany();
     expect(user!.emailVerifiedAt).toEqual(clock.now());
-    const [challenge] = await testDb.select().from(otpChallenges);
+    const [challenge] = await testDb.otpChallenge.findMany();
     expect(challenge!.consumedAt).toEqual(clock.now());
   });
 
@@ -73,7 +71,7 @@ describe('POST /auth/otp/verify', () => {
     const res = await api(app).verify({ challengeId, code: OTP });
 
     const token = sessionToken(res);
-    const rows = await testDb.select().from(sessions);
+    const rows = await testDb.session.findMany();
     expect(rows).toHaveLength(1);
     expect(rows[0]!.tokenHash).toBe(hashSessionToken(token));
     expect(rows[0]!.tokenHash).not.toContain(token);
@@ -106,7 +104,7 @@ describe('POST /auth/otp/verify', () => {
     expect(locked.status).toBe(400);
     expect(locked.body.error.code).toBe('OTP_INVALID');
     expect(attemptsRemaining(locked.body)).toBe(0);
-    expect(await testDb.select().from(sessions)).toHaveLength(0);
+    expect(await testDb.session.findMany()).toHaveLength(0);
   });
 
   it('never pushes attempts past 5 (CHECK constraint) even with extra wrong codes', async () => {
@@ -114,7 +112,7 @@ describe('POST /auth/otp/verify', () => {
     for (let i = 0; i < 8; i += 1) {
       expect((await api(app).verify({ challengeId, code: WRONG })).status).toBe(400);
     }
-    const [challenge] = await testDb.select().from(otpChallenges);
+    const [challenge] = await testDb.otpChallenge.findMany();
     expect(challenge!.attempts).toBe(5);
   });
 
@@ -146,7 +144,7 @@ describe('POST /auth/otp/verify', () => {
 
     expect(again.status).toBe(400);
     expect(again.body.error.code).toBe('OTP_INVALID');
-    expect(await testDb.select().from(sessions)).toHaveLength(1);
+    expect(await testDb.session.findMany()).toHaveLength(1);
   });
 
   it('lets exactly one of two simultaneous correct submissions through', async () => {
@@ -158,7 +156,7 @@ describe('POST /auth/otp/verify', () => {
     ]);
 
     expect(results.map((r) => r.status).sort()).toEqual([200, 400]);
-    expect(await testDb.select().from(sessions)).toHaveLength(1);
+    expect(await testDb.session.findMany()).toHaveLength(1);
   });
 
   it('rejects an expired challenge without counting an attempt, even with the right code', async () => {
@@ -171,9 +169,9 @@ describe('POST /auth/otp/verify', () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('OTP_INVALID');
-    const [challenge] = await testDb.select().from(otpChallenges);
+    const [challenge] = await testDb.otpChallenge.findMany();
     expect(challenge!.attempts).toBe(0);
-    expect(await testDb.select().from(sessions)).toHaveLength(0);
+    expect(await testDb.session.findMany()).toHaveLength(0);
   });
 
   it('still accepts the code one millisecond before expiry', async () => {
@@ -197,36 +195,36 @@ describe('POST /auth/otp/verify', () => {
   it('refuses a RESET challenge on the sign-in endpoint', async () => {
     const user = await createUser();
     const id = randomUUID();
-    await testDb.insert(otpChallenges).values({
+    await testDb.otpChallenge.create({ data: {
       id,
       userId: user.id,
       purpose: 'RESET',
       codeHash: hashOtpCode(id, OTP),
       expiresAt: new Date(clock.now().getTime() + OTP_TTL_MS),
-    });
+    } });
 
     const res = await api(app).verify({ challengeId: id, code: OTP });
 
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('OTP_INVALID');
-    expect(await testDb.select().from(sessions)).toHaveLength(0);
+    expect(await testDb.session.findMany()).toHaveLength(0);
   });
 
   it('also accepts a LOGIN challenge and marks an unverified account verified', async () => {
     const user = await createUser({ emailVerifiedAt: null });
     const id = randomUUID();
-    await testDb.insert(otpChallenges).values({
+    await testDb.otpChallenge.create({ data: {
       id,
       userId: user.id,
       purpose: 'LOGIN',
       codeHash: hashOtpCode(id, OTP),
       expiresAt: new Date(clock.now().getTime() + OTP_TTL_MS),
-    });
+    } });
 
     const res = await api(app).verify({ challengeId: id, code: OTP });
 
     expect(res.status).toBe(200);
-    const [row] = await testDb.select().from(users).where(eq(users.id, user.id));
+    const [row] = await testDb.user.findMany({ where: { id: user.id } });
     expect(row!.emailVerifiedAt).not.toBeNull();
   });
 

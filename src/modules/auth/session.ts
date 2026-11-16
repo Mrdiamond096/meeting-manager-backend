@@ -1,6 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { Response } from 'express';
-import { sessions } from '../../db/schema/index.js';
 import type { Executor } from './repository.js';
 
 export const SESSION_COOKIE = 'sid';
@@ -19,12 +18,8 @@ export async function createSession(
 ): Promise<{ token: string; expiresAt: Date }> {
   const token = randomBytes(32).toString('base64url');
   const expiresAt = new Date(now.getTime() + SESSION_ABSOLUTE_MS);
-  await ex.insert(sessions).values({
-    tokenHash: hashSessionToken(token),
-    userId,
-    createdAt: now,
-    lastSeenAt: now,
-    expiresAt,
+  await ex.session.create({
+    data: { tokenHash: hashSessionToken(token), userId, createdAt: now, lastSeenAt: now, expiresAt },
   });
   return { token, expiresAt };
 }

@@ -1,14 +1,11 @@
-import { and, eq, gt, isNull, lt, sql } from 'drizzle-orm';
-import type { Database } from '../../db/client.js';
-import { otpChallenges, users } from '../../db/schema/index.js';
+import type { Executor } from '../../db/client.js';
+import type { OtpChallenge, User } from '../../generated/prisma/client.js';
 import type { OtpPurpose } from './otp-provider.js';
 
-type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
-/** Repositories run either on the pool or inside a transaction. */
-export type Executor = Database | Transaction;
-
-export type UserRow = typeof users.$inferSelect;
-export type ChallengeRow = typeof otpChallenges.$inferSelect;
+export type { Executor };
+export type UserRow = User;
+/** `purpose` is a varchar guarded by a CHECK constraint, so narrowing it to the union is safe. */
+export type ChallengeRow = OtpChallenge & { purpose: OtpPurpose };
 
 /** ADR-009: a challenge is unusable after this many wrong codes. */
 export const MAX_OTP_ATTEMPTS = 5;
@@ -21,15 +18,15 @@ export async function upsertUnverifiedUser(
   ex: Executor,
   input: { email: string; passwordHash: string; now: Date },
 ): Promise<UserRow | undefined> {
-  const [row] = await ex
-    .insert(users)
-    .values({ email: input.email, passwordHash: input.passwordHash, createdAt: input.now, updatedAt: input.now })
-    .onConflictDoUpdate({
-      target: users.email,
-      set: { passwordHash: input.passwordHash, updatedAt: input.now },
-      setWhere: isNull(users.emailVerifiedAt),
-    })
-    .returning();
+  // Prisma's upsert cannot carry the `where email_verified_at is null` guard, so this stays one raw statement.
+  const [row] = await ex.$queryRaw<UserRow[]>`
+    insert into users (email, password_hash, created_at, updated_at)
+    values (${input.email}, ${input.passwordHash}, ${input.now}, ${input.now})
+    on conflict (email) do update
+      set password_hash = excluded.password_hash, updated_at = ${input.now}
+      where users.email_verified_at is null
+    returning id, email, password_hash as "passwordHash", role, email_verified_at as "emailVerifiedAt",
+      created_at as "createdAt", updated_at as "updatedAt"`;
   return row;
 }
 
@@ -43,19 +40,18 @@ export async function upsertUnverifiedUser(
  * inserting a challenge takes through its foreign key.
  */
 export async function lockUser(ex: Executor, userId: string): Promise<void> {
-  await ex.select({ id: users.id }).from(users).where(eq(users.id, userId)).for('no key update');
+  await ex.$queryRaw`select id from users where id = ${userId}::uuid for no key update`;
 }
 
 export async function findUserById(ex: Executor, id: string): Promise<UserRow | undefined> {
-  const [row] = await ex.select().from(users).where(eq(users.id, id));
-  return row;
+  return (await ex.user.findUnique({ where: { id } })) ?? undefined;
 }
 
 export async function markEmailVerified(ex: Executor, userId: string, now: Date): Promise<void> {
-  await ex
-    .update(users)
-    .set({ emailVerifiedAt: now, updatedAt: now })
-    .where(and(eq(users.id, userId), isNull(users.emailVerifiedAt)));
+  await ex.user.updateMany({
+    where: { id: userId, emailVerifiedAt: null },
+    data: { emailVerifiedAt: now, updatedAt: now },
+  });
 }
 
 export async function insertChallenge(
@@ -70,20 +66,21 @@ export async function insertChallenge(
     now: Date;
   },
 ): Promise<void> {
-  await ex.insert(otpChallenges).values({
-    id: input.id,
-    userId: input.userId,
-    purpose: input.purpose,
-    codeHash: input.codeHash,
-    attempts: input.attempts,
-    expiresAt: input.expiresAt,
-    createdAt: input.now,
+  await ex.otpChallenge.create({
+    data: {
+      id: input.id,
+      userId: input.userId,
+      purpose: input.purpose,
+      codeHash: input.codeHash,
+      attempts: input.attempts,
+      expiresAt: input.expiresAt,
+      createdAt: input.now,
+    },
   });
 }
 
 export async function findChallenge(ex: Executor, id: string): Promise<ChallengeRow | undefined> {
-  const [row] = await ex.select().from(otpChallenges).where(eq(otpChallenges.id, id));
-  return row;
+  return ((await ex.otpChallenge.findUnique({ where: { id } })) as ChallengeRow | null) ?? undefined;
 }
 
 /** Makes every open challenge of this user and purpose unusable (a new one is about to be issued). */
@@ -93,10 +90,7 @@ export async function invalidateOpenChallenges(
   purpose: OtpPurpose,
   now: Date,
 ): Promise<void> {
-  await ex
-    .update(otpChallenges)
-    .set({ consumedAt: now })
-    .where(and(eq(otpChallenges.userId, userId), eq(otpChallenges.purpose, purpose), isNull(otpChallenges.consumedAt)));
+  await ex.otpChallenge.updateMany({ where: { userId, purpose, consumedAt: null }, data: { consumedAt: now } });
 }
 
 /** Challenges issued to this user for this purpose since `since`, including retired ones (stable across resends). */
@@ -106,13 +100,7 @@ export async function countChallengesSince(
   purpose: OtpPurpose,
   since: Date,
 ): Promise<number> {
-  const [row] = await ex
-    .select({ n: sql<number>`count(*)::int` })
-    .from(otpChallenges)
-    .where(
-      and(eq(otpChallenges.userId, userId), eq(otpChallenges.purpose, purpose), gt(otpChallenges.createdAt, since)),
-    );
-  return row?.n ?? 0;
+  return ex.otpChallenge.count({ where: { userId, purpose, createdAt: { gt: since } } });
 }
 
 /**
@@ -120,44 +108,28 @@ export async function countChallengesSince(
  * (consumed, expired or already locked), so the counter can never pass MAX_OTP_ATTEMPTS.
  */
 export async function recordFailedAttempt(ex: Executor, id: string, now: Date): Promise<number | undefined> {
-  const [row] = await ex
-    .update(otpChallenges)
-    .set({ attempts: sql`${otpChallenges.attempts} + 1` })
-    .where(
-      and(
-        eq(otpChallenges.id, id),
-        isNull(otpChallenges.consumedAt),
-        gt(otpChallenges.expiresAt, now),
-        lt(otpChallenges.attempts, MAX_OTP_ATTEMPTS),
-      ),
-    )
-    .returning({ attempts: otpChallenges.attempts });
+  const [row] = await ex.otpChallenge.updateManyAndReturn({
+    where: { id, consumedAt: null, expiresAt: { gt: now }, attempts: { lt: MAX_OTP_ATTEMPTS } },
+    data: { attempts: { increment: 1 } },
+    select: { attempts: true },
+  });
   return row?.attempts;
 }
 
 /** Single-use: exactly one caller gets the row back for an open, unexpired, unlocked challenge. */
 export async function consumeChallenge(ex: Executor, id: string, now: Date): Promise<ChallengeRow | undefined> {
-  const [row] = await ex
-    .update(otpChallenges)
-    .set({ consumedAt: now })
-    .where(
-      and(
-        eq(otpChallenges.id, id),
-        isNull(otpChallenges.consumedAt),
-        gt(otpChallenges.expiresAt, now),
-        lt(otpChallenges.attempts, MAX_OTP_ATTEMPTS),
-      ),
-    )
-    .returning();
-  return row;
+  const [row] = await ex.otpChallenge.updateManyAndReturn({
+    where: { id, consumedAt: null, expiresAt: { gt: now }, attempts: { lt: MAX_OTP_ATTEMPTS } },
+    data: { consumedAt: now },
+  });
+  return row as ChallengeRow | undefined;
 }
 
 /** Like consumeChallenge but expired challenges may be replaced; locked and used ones may not. */
 export async function retireChallengeForResend(ex: Executor, id: string, now: Date): Promise<ChallengeRow | undefined> {
-  const [row] = await ex
-    .update(otpChallenges)
-    .set({ consumedAt: now })
-    .where(and(eq(otpChallenges.id, id), isNull(otpChallenges.consumedAt), lt(otpChallenges.attempts, MAX_OTP_ATTEMPTS)))
-    .returning();
-  return row;
+  const [row] = await ex.otpChallenge.updateManyAndReturn({
+    where: { id, consumedAt: null, attempts: { lt: MAX_OTP_ATTEMPTS } },
+    data: { consumedAt: now },
+  });
+  return row as ChallengeRow | undefined;
 }

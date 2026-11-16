@@ -1,6 +1,6 @@
+import type { Prisma } from '../../src/generated/prisma/client.js';
 import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { otpChallenges } from '../../src/db/schema/index.js';
 import { hashOtpCode } from '../../src/modules/auth/otp-code.js';
 import * as repo from '../../src/modules/auth/repository.js';
 import { createUser, resetDb, testDb } from '../helpers/db.js';
@@ -8,10 +8,10 @@ import { createUser, resetDb, testDb } from '../helpers/db.js';
 const NOW = new Date('2026-11-20T10:00:00.000Z');
 const LATER = new Date(NOW.getTime() + 5 * 60_000);
 
-async function openChallenge(overrides: Partial<typeof otpChallenges.$inferInsert> = {}) {
+async function openChallenge(overrides: Partial<Prisma.OtpChallengeUncheckedCreateInput> = {}) {
   const user = await createUser();
   const id = randomUUID();
-  await testDb.insert(otpChallenges).values({
+  await testDb.otpChallenge.create({ data: {
     id,
     userId: user.id,
     purpose: 'REGISTER',
@@ -19,7 +19,7 @@ async function openChallenge(overrides: Partial<typeof otpChallenges.$inferInser
     expiresAt: LATER,
     createdAt: NOW,
     ...overrides,
-  });
+  } });
   return id;
 }
 

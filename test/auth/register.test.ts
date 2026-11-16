@@ -1,7 +1,5 @@
-import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { config } from '../../src/config.js';
-import { otpChallenges, users } from '../../src/db/schema/index.js';
 import { OTP_TTL_MS } from '../../src/modules/auth/service.js';
 import { createUser, resetDb, testDb } from '../helpers/db.js';
 import { api, createAuthApp, createClock, OTP, PASSWORD, registerUser } from './helpers.js';
@@ -19,9 +17,9 @@ describe('POST /auth/register', () => {
     expect(res.body.challengeId).toEqual(expect.any(String));
     expect(res.body.expiresAt).toBe(new Date(clock.now().getTime() + OTP_TTL_MS).toISOString());
 
-    const [user] = await testDb.select().from(users);
+    const [user] = await testDb.user.findMany();
     expect(user).toMatchObject({ email: 'a@example.test', role: 'USER', emailVerifiedAt: null });
-    const [challenge] = await testDb.select().from(otpChallenges);
+    const [challenge] = await testDb.otpChallenge.findMany();
     expect(challenge).toMatchObject({
       id: res.body.challengeId,
       userId: user!.id,
@@ -34,10 +32,10 @@ describe('POST /auth/register', () => {
   it('never stores the password or the OTP in clear text', async () => {
     await api(app).register({ email: 'a@example.test', password: PASSWORD });
 
-    const [user] = await testDb.select().from(users);
+    const [user] = await testDb.user.findMany();
     expect(user!.passwordHash).toMatch(/^\$2[aby]\$04\$/);
     expect(user!.passwordHash).not.toContain(PASSWORD);
-    const [challenge] = await testDb.select().from(otpChallenges);
+    const [challenge] = await testDb.otpChallenge.findMany();
     expect(challenge!.codeHash).toMatch(/^[0-9a-f]{64}$/);
     expect(challenge!.codeHash).not.toContain(OTP);
   });
@@ -50,7 +48,7 @@ describe('POST /auth/register', () => {
   it('normalizes the email (trim + lowercase)', async () => {
     const res = await api(app).register({ email: '  Mixed.Case@Example.TEST ', password: PASSWORD });
     expect(res.status).toBe(201);
-    const [user] = await testDb.select().from(users);
+    const [user] = await testDb.user.findMany();
     expect(user!.email).toBe('mixed.case@example.test');
   });
 
@@ -68,7 +66,7 @@ describe('POST /auth/register', () => {
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
     expect(res.body.error.details.map((d: { path: string }) => d.path)).toContain(path);
-    expect(await testDb.select().from(users)).toHaveLength(0);
+    expect(await testDb.user.findMany()).toHaveLength(0);
   });
 
   it('accepts a password of exactly 72 bytes and exactly 8 characters', async () => {
@@ -83,20 +81,20 @@ describe('POST /auth/register', () => {
 
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe('EMAIL_TAKEN');
-    const [row] = await testDb.select().from(users).where(eq(users.id, existing.id));
+    const [row] = await testDb.user.findMany({ where: { id: existing.id } });
     expect(row!.passwordHash).toBe('original-hash');
-    expect(await testDb.select().from(otpChallenges)).toHaveLength(0);
+    expect(await testDb.otpChallenge.findMany()).toHaveLength(0);
   });
 
   it('replaces the password of an unverified account and invalidates its earlier challenge', async () => {
     const first = await registerUser(app, 'again@example.test');
-    const [before] = await testDb.select().from(users);
+    const [before] = await testDb.user.findMany();
 
     const res = await api(app).register({ email: 'again@example.test', password: 'a different password' });
 
     expect(res.status).toBe(201);
     expect(res.body.challengeId).not.toBe(first.challengeId);
-    const rows = await testDb.select().from(users);
+    const rows = await testDb.user.findMany();
     expect(rows).toHaveLength(1);
     expect(rows[0]!.id).toBe(before!.id);
     expect(rows[0]!.passwordHash).not.toBe(before!.passwordHash);
@@ -114,7 +112,7 @@ describe('POST /auth/register', () => {
       api(app).register({ email: 'race@example.test', password: PASSWORD }),
     ]);
     expect(results.map((r) => r.status)).toEqual([201, 201]);
-    expect(await testDb.select().from(users)).toHaveLength(1);
+    expect(await testDb.user.findMany()).toHaveLength(1);
   });
 });
 

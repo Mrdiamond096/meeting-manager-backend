@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { config } from '../../src/config.js';
-import { otpChallenges } from '../../src/db/schema/index.js';
 import type { OtpProvider } from '../../src/modules/auth/otp-provider.js';
 import { MockOtpProvider } from '../../src/modules/auth/otp-provider.js';
 import { OTP_TTL_MS, RESEND_WINDOW_MS } from '../../src/modules/auth/service.js';
@@ -34,7 +33,7 @@ describe('POST /auth/otp/resend', () => {
     const first = await registerUser(app);
     const res = await api(app).resend({ challengeId: first.challengeId });
 
-    const rows = await testDb.select().from(otpChallenges);
+    const rows = await testDb.otpChallenge.findMany();
     const created = rows.find((r) => r.id === res.body.challengeId);
     const original = rows.find((r) => r.id === first.challengeId);
     expect(created).toMatchObject({ purpose: 'REGISTER', userId: original!.userId, consumedAt: null });
@@ -58,7 +57,7 @@ describe('POST /auth/otp/resend', () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('OTP_INVALID');
-    expect(await testDb.select().from(otpChallenges)).toHaveLength(1);
+    expect(await testDb.otpChallenge.findMany()).toHaveLength(1);
   });
 
   it('refuses to resend a challenge that was already used', async () => {
@@ -157,7 +156,7 @@ describe('resend budget', () => {
     const { statuses } = await chainResends(app, challengeId, 8);
 
     expect(statuses).toEqual([200, 200, 200, 429, 429, 429, 429, 429]);
-    expect(await testDb.select().from(otpChallenges)).toHaveLength(4);
+    expect(await testDb.otpChallenge.findMany()).toHaveLength(4);
   });
 
   it('answers RATE_LIMITED and leaves the latest challenge usable', async () => {

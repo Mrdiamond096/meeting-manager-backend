@@ -1,7 +1,6 @@
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.js';
-import { sessions } from '../../src/db/schema/index.js';
 import { resetDb, testDb } from '../helpers/db.js';
 import { OTP, PASSWORD, sessionToken } from './helpers.js';
 
@@ -22,7 +21,7 @@ describe('auth routes mounted in createApp', () => {
     expect(verified.status).toBe(200);
     expect(verified.body.user).toMatchObject({ email: 'e2e@example.test', role: 'USER' });
     expect(sessionToken(verified)).toHaveLength(43);
-    expect(await testDb.select().from(sessions)).toHaveLength(1);
+    expect(await testDb.session.findMany()).toHaveLength(1);
   });
 
   it('rejects a registration posted from a foreign Origin before touching the database', async () => {

@@ -1,4 +1,4 @@
-import type { OTP_PURPOSES } from '../../db/schema/otp-challenges.js';
+import type { OTP_PURPOSES } from '../../db/constants.js';
 import type { Config } from '../../config.js';
 
 export type OtpPurpose = (typeof OTP_PURPOSES)[number];

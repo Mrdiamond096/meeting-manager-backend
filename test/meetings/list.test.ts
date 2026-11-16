@@ -128,6 +128,26 @@ describe('range view validation messages', () => {
     expect(res.body.error.details).toEqual([expect.objectContaining({ path: 'query.from' })]);
   });
 
+  it.each([
+    ['from=not-a-date&to=2026-11-20T00:00:00Z', ['query.from']],
+    ['from=2026-11-01T00:00:00Z&to=not-a-date', ['query.to']],
+    ['from=not-a-date&to=also-bad', ['query.from', 'query.to']],
+    ['from=2026-11-01&to=2026-11-02', ['query.from', 'query.to']],
+  ])('answers 400 naming only the malformed bound in range mode: %s', async (bounds, paths) => {
+    const { app } = await loginAs();
+    const res = await request(app).get(`/api/v1/meetings?view=range&${bounds}`);
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.details.map((d: { path: string }) => d.path)).toEqual(paths);
+  });
+
+  it('adds no derived issues on top of a malformed page query', async () => {
+    const { app } = await loginAs();
+    const res = await request(app).get('/api/v1/meetings?page=abc&from=bad&to=2026-11-20T00:00:00Z');
+    expect(res.status).toBe(400);
+    expect(res.body.error.details.map((d: { path: string }) => d.path)).toEqual(['query.from', 'query.page']);
+  });
+
   it('rejects an unknown view value', async () => {
     const { app } = await loginAs();
     const res = await request(app).get('/api/v1/meetings?view=week&from=2026-11-01T00:00:00Z&to=2026-11-02T00:00:00Z');

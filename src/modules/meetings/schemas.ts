@@ -57,13 +57,20 @@ const rangeChecks = (v: { from?: Date; to?: Date }, ctx: z.RefinementCtx) => {
     ctx.addIssue({ code: 'custom', path: ['to'], message: 'Must be after from' });
   }
 };
+/**
+ * Zod 4 runs object-level refinements even when a field failed its format check, with the raw input in
+ * place of the parsed value (a bad `from` is still a string). Cross-field rules need parsed values, so
+ * they only run once every field is valid; the field's own issue is what the client should see.
+ */
 const pageListSchema = pageQuery.superRefine((v, ctx) => {
+  if (ctx.issues.length > 0) return;
   rangeChecks(v, ctx);
   if (!Number.isSafeInteger((v.page - 1) * v.pageSize)) {
     ctx.addIssue({ code: 'custom', path: ['page'], message: 'Page offset is too large' });
   }
 });
 const rangeListSchema = rangeQuery.superRefine((v, ctx) => {
+  if (ctx.issues.length > 0) return;
   rangeChecks(v, ctx);
   if (v.to.getTime() - v.from.getTime() > 42 * 86_400_000) {
     ctx.addIssue({ code: 'custom', path: ['to'], message: 'Range must not exceed 42 days' });

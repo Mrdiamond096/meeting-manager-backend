@@ -3,11 +3,14 @@ import { z } from 'zod';
 /** ADR-009: trimmed + lowercased, at most 254 characters. */
 export const email = z.string().trim().toLowerCase().email().max(254);
 
+/** bcrypt only reads the first 72 bytes of a password. */
+export const MAX_PASSWORD_BYTES = 72;
+
 /** ADR-009: at least 8 characters, at most 72 bytes (bcrypt truncates silently beyond that). */
 export const password = z
   .string()
   .min(8, 'Password must be at least 8 characters')
-  .refine((v) => Buffer.byteLength(v, 'utf8') <= 72, 'Password must be at most 72 bytes');
+  .refine((v) => Buffer.byteLength(v, 'utf8') <= MAX_PASSWORD_BYTES, 'Password must be at most 72 bytes');
 
 export const challengeId = z.string().uuid();
 

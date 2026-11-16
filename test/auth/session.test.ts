@@ -1,5 +1,9 @@
+import express from 'express';
+import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { createAuthenticate } from '../../src/modules/auth/authenticate.js';
 import {
+  deleteSessionIfInactive,
   SESSION_ABSOLUTE_MS,
   SESSION_IDLE_MS,
   SESSION_TOUCH_MS,
@@ -101,6 +105,54 @@ describe('session authentication and GET /auth/me', () => {
       const res = await api(timedApp).me(cookie);
       expect(res.status).toBe(401);
       expect(await testDb.session.findMany()).toHaveLength(0);
+    });
+
+    it('does not delete a session that a parallel request refreshed after we read it', async () => {
+      const timed = createClock();
+      const { userId, cookie } = await signIn(createAuthApp({ now: timed.now }));
+      timed.advance(SESSION_IDLE_MS + 1); // our copy of the row will look idle
+
+      // Same database, but right after the first read of the session another request refreshes it.
+      let refreshed = false;
+      const db = new Proxy(testDb, {
+        get(target, prop, receiver) {
+          if (prop !== 'session') return Reflect.get(target, prop, receiver);
+          return new Proxy(target.session, {
+            get(sessions, method, r) {
+              if (method !== 'findUnique') return Reflect.get(sessions, method, r);
+              return async (args: Parameters<typeof sessions.findUnique>[0]) => {
+                const row = await sessions.findUnique(args);
+                if (!refreshed) {
+                  refreshed = true;
+                  await sessions.updateMany({ where: { userId }, data: { lastSeenAt: timed.now() } });
+                }
+                return row;
+              };
+            },
+          });
+        },
+      });
+      const racing = express();
+      racing.use(createAuthenticate({ db, now: timed.now }));
+      racing.get('/who', (req, res) => res.json({ user: req.user ?? null }));
+
+      const res = await request(racing).get('/who').set('Cookie', cookie);
+
+      expect(res.body.user?.id).toBe(userId);
+      expect(await testDb.session.findMany({ where: { userId } })).toHaveLength(1);
+    });
+
+    it('deleteSessionIfInactive keeps a session that is active in the database', async () => {
+      const timed = createClock();
+      const { userId } = await signIn(createAuthApp({ now: timed.now }));
+      const session = (await testDb.session.findMany({ where: { userId } }))[0]!;
+
+      expect(await deleteSessionIfInactive(testDb, session.id, timed.now())).toBe(false);
+      expect(await testDb.session.count()).toBe(1);
+
+      timed.advance(SESSION_IDLE_MS);
+      expect(await deleteSessionIfInactive(testDb, session.id, timed.now())).toBe(true);
+      expect(await testDb.session.count()).toBe(0);
     });
 
     it('only rewrites last_seen_at when it is at least a minute old', async () => {

@@ -7,6 +7,7 @@ import type { OtpProvider, OtpPurpose } from './otp-provider.js';
 import type { PasswordHasher } from './password.js';
 import * as repo from './repository.js';
 import { MAX_OTP_ATTEMPTS, type Executor, type UserRow } from './repository.js';
+import { MAX_PASSWORD_BYTES } from './schemas.js';
 import { createSession, deleteSessionByToken } from './session.js';
 
 /** ADR-009: a challenge lives 5 minutes. */
@@ -85,7 +86,9 @@ export function createAuthService({ db, now, otp, hasher }: AuthServiceDeps) {
      */
     async login(input: { email: string; password: string }): Promise<IssuedChallenge> {
       const user = await repo.findUserByEmail(db, input.email);
-      if (!user) {
+      // bcrypt silently ignores everything past 72 bytes, so a longer password would "match" its own prefix.
+      // Registration refuses such passwords, so one can never be right: answer like any wrong password.
+      if (!user || Buffer.byteLength(input.password, 'utf8') > MAX_PASSWORD_BYTES) {
         await hasher.verifyAgainstDummy(input.password);
         throw new AppError('INVALID_CREDENTIALS');
       }

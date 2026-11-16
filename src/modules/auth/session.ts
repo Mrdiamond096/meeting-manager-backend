@@ -53,12 +53,24 @@ export function isSessionActive(session: Pick<SessionRecord, 'lastSeenAt' | 'exp
   return session.expiresAt.getTime() > now.getTime() && session.lastSeenAt.getTime() + SESSION_IDLE_MS > now.getTime();
 }
 
+/** Never moves last_seen_at backwards, so two overlapping requests cannot shorten each other's refresh. */
 export async function touchSession(ex: Executor, id: string, now: Date): Promise<void> {
-  await ex.session.updateMany({ where: { id }, data: { lastSeenAt: now } });
+  await ex.session.updateMany({ where: { id, lastSeenAt: { lt: now } }, data: { lastSeenAt: now } });
 }
 
-export async function deleteSession(ex: Executor, id: string): Promise<void> {
-  await ex.session.deleteMany({ where: { id } });
+/**
+ * Deletes the session only if it is dead right now. The check runs in the DELETE itself because the caller's copy
+ * may be stale: another request can refresh last_seen_at between the read and this delete, and that session must
+ * survive. Returns whether a row was removed.
+ */
+export async function deleteSessionIfInactive(ex: Executor, id: string, now: Date): Promise<boolean> {
+  const { count } = await ex.session.deleteMany({
+    where: {
+      id,
+      OR: [{ expiresAt: { lte: now } }, { lastSeenAt: { lte: new Date(now.getTime() - SESSION_IDLE_MS) } }],
+    },
+  });
+  return count > 0;
 }
 
 export async function deleteSessionByToken(ex: Executor, token: string): Promise<void> {

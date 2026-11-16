@@ -66,6 +66,40 @@ describe('POST /auth/login', () => {
     expect(await testDb.otpChallenge.findMany()).toHaveLength(0);
   });
 
+  describe('bcrypt 72-byte limit', () => {
+    // bcrypt only reads 72 bytes, so without a check the 73rd byte and beyond would be ignored.
+    it.each([
+      ['ASCII', 'x'.repeat(72), 'x'.repeat(72) + 'y'],
+      ['multi-byte', 'ก'.repeat(24), 'ก'.repeat(24) + 'a'],
+    ])('answers 401 for a %s password that only matches its first 72 bytes', async (_name, exact, longer) => {
+      const who = 'limit@example.test';
+      const { challengeId } = (await api(app).register({ email: who, password: exact })).body;
+      await api(app).verify({ challengeId, code: OTP });
+      await testDb.otpChallenge.deleteMany();
+
+      const ok = await api(app).login({ email: who, password: exact });
+      expect(ok.status).toBe(200);
+      await testDb.otpChallenge.deleteMany();
+
+      const res = await api(app).login({ email: who, password: longer });
+      expect(res.status).toBe(401);
+      expect(res.body.error.code).toBe('INVALID_CREDENTIALS');
+      expect(await testDb.otpChallenge.findMany()).toHaveLength(0);
+    });
+
+    it('still spends one bcrypt comparison on an over-long password', async () => {
+      const real = createPasswordHasher(4);
+      const verify = vi.spyOn(real, 'verify');
+      const verifyAgainstDummy = vi.spyOn(real, 'verifyAgainstDummy');
+      const spied = createAuthApp({ now: clock.now, passwordHasher: real });
+
+      await api(spied).login({ email, password: PASSWORD.padEnd(73, 'x') });
+
+      expect(verify).not.toHaveBeenCalled();
+      expect(verifyAgainstDummy).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('still spends a bcrypt comparison when the email is unknown (no timing oracle)', async () => {
     const real = createPasswordHasher(4);
     const verify = vi.spyOn(real, 'verify');

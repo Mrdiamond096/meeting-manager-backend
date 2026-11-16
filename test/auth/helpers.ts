@@ -80,6 +80,8 @@ export const api = (app: Target) => ({
   login: (body: unknown) => request(app).post(`${BASE}/login`).send(body as object),
   verify: (body: unknown) => request(app).post(`${BASE}/otp/verify`).send(body as object),
   resend: (body: unknown) => request(app).post(`${BASE}/otp/resend`).send(body as object),
+  forgot: (body: unknown) => request(app).post(`${BASE}/password/forgot`).send(body as object),
+  reset: (body: unknown) => request(app).post(`${BASE}/password/reset`).send(body as object),
   me: (cookie?: string) => request(app).get(`${BASE}/me`).set('Cookie', cookie ?? ''),
   logout: (cookie?: string) => request(app).post(`${BASE}/logout`).set('Cookie', cookie ?? ''),
 });

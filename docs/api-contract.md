@@ -97,10 +97,12 @@ All OTP challenges: 5 minutes TTL, single use, invalid after 5 wrong codes (logg
 | POST | `/auth/login` | `{ email, password }` | 200 `{ challengeId, expiresAt }` (LOGIN challenge) | 400, 401 `INVALID_CREDENTIALS`, 429 (5/15 min per IP+email) |
 | POST | `/auth/otp/verify` | `{ challengeId, code }` | 200 `{ user: User }` + `Set-Cookie: sid` (REGISTER also marks email verified and signs in) | 400 `OTP_INVALID` with `details: [{ path: "attemptsRemaining", message: "3" }]` |
 | POST | `/auth/otp/resend` | `{ challengeId }` | 200 `{ challengeId, expiresAt }` (old challenge invalidated) | 400 `OTP_INVALID`, 429 |
-| POST | `/auth/password/forgot` | `{ email }` | 202 `{ challengeId, expiresAt }` — **always**, even for unknown email (fake id) | 400, 429 (3/h per IP+email) |
-| POST | `/auth/password/reset` | `{ challengeId, code, newPassword }` | 204; all sessions of the user deleted | 400 `VALIDATION_ERROR` / `OTP_INVALID` |
+| POST | `/auth/password/forgot` | `{ email }` | 202 `{ challengeId, expiresAt }` — **always**, even for unknown email (fake id) and when the account's hourly reset budget (5 codes) is used up | 400, 429 (3/h per IP+email) |
+| POST | `/auth/password/reset` | `{ challengeId, code, newPassword }` | 204; password replaced, all sessions of the user deleted, no new session (sign in afterwards) | 400 `VALIDATION_ERROR` / `OTP_INVALID` (**no** `attemptsRemaining` here), 429 (10/15 min per IP) |
 | POST | `/auth/logout` | — | 204, session row deleted, cookie cleared | — (idempotent) |
 | GET | `/auth/me` | — | 200 `{ user: User }` | 401 |
+
+Reset challenges cannot be resent (`/auth/otp/resend` answers `OTP_INVALID`, like for an unknown id): the client asks `/auth/password/forgot` again for a new code. Both rules exist so a real reset challenge cannot be told apart from the fake one.
 
 Rules: email trimmed + lowercased, ≤ 254 chars · password 8–72 bytes, no composition rules · register with an existing **unverified** email replaces its password and issues a new challenge · login of an unverified account works (the OTP proves the email) · session idle 8 h, absolute 7 days.
 

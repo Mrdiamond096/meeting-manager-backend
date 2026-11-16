@@ -7,7 +7,7 @@ import type { OtpProvider, OtpPurpose } from './otp-provider.js';
 import type { PasswordHasher } from './password.js';
 import * as repo from './repository.js';
 import { MAX_OTP_ATTEMPTS, type Executor, type UserRow } from './repository.js';
-import { createSession } from './session.js';
+import { createSession, deleteSessionByToken } from './session.js';
 
 /** ADR-009: a challenge lives 5 minutes. */
 export const OTP_TTL_MS = 5 * 60 * 1000;
@@ -77,6 +77,40 @@ export function createAuthService({ db, now, otp, hasher }: AuthServiceDeps) {
 
       await otp.deliver({ userId, purpose: 'REGISTER' }, issued.code);
       return { challengeId: issued.challengeId, expiresAt: issued.expiresAt };
+    },
+
+    /**
+     * First factor of login (ADR-009): checks the password and issues a LOGIN challenge. No session yet; the
+     * session only exists after /otp/verify. Unknown email and wrong password are indistinguishable.
+     */
+    async login(input: { email: string; password: string }): Promise<IssuedChallenge> {
+      const user = await repo.findUserByEmail(db, input.email);
+      if (!user) {
+        await hasher.verifyAgainstDummy(input.password);
+        throw new AppError('INVALID_CREDENTIALS');
+      }
+      if (!(await hasher.verify(input.password, user.passwordHash))) throw new AppError('INVALID_CREDENTIALS');
+
+      const at = now();
+      const issued = await db.$transaction(async (tx) => {
+        await repo.lockUser(tx, user.id); // lock order: user, then challenge (see repo.lockUser)
+        await repo.invalidateOpenChallenges(tx, user.id, 'LOGIN', at);
+        return issueChallenge(tx, { userId: user.id, purpose: 'LOGIN' }, at);
+      });
+
+      await otp.deliver({ userId: user.id, purpose: 'LOGIN' }, issued.code);
+      return { challengeId: issued.challengeId, expiresAt: issued.expiresAt };
+    },
+
+    /** Idempotent: an absent, malformed or unknown token is not an error. */
+    async logout(token: string | undefined): Promise<void> {
+      if (token) await deleteSessionByToken(db, token);
+    },
+
+    async currentUser(userId: string): Promise<UserRow> {
+      const user = await repo.findUserById(db, userId);
+      if (!user) throw new AppError('UNAUTHENTICATED');
+      return user;
     },
 
     /** Checks a REGISTER or LOGIN code; on success marks the email verified and opens a session. */

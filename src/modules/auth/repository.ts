@@ -43,6 +43,10 @@ export async function lockUser(ex: Executor, userId: string): Promise<void> {
   await ex.$queryRaw`select id from users where id = ${userId}::uuid for no key update`;
 }
 
+export async function findUserByEmail(ex: Executor, email: string): Promise<UserRow | undefined> {
+  return (await ex.user.findUnique({ where: { email } })) ?? undefined;
+}
+
 export async function findUserById(ex: Executor, id: string): Promise<UserRow | undefined> {
   return (await ex.user.findUnique({ where: { id } })) ?? undefined;
 }

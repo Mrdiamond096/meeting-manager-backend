@@ -3,7 +3,7 @@
 Rules for AI coding agents (Codex, Cursor, Claude). Full brief: umbrella repo `docs/discussion/finally/ai-collaboration.md`.
 
 ## Stack
-Node 24 · Express 5 · TypeScript (ESM, `NodeNext`) · Drizzle ORM + PostgreSQL 16 · Zod 3 · pino · Vitest + supertest.
+Node 24 · Express 5 · TypeScript (ESM, `NodeNext`) · Prisma 7 (`@prisma/adapter-pg`) + PostgreSQL 16 · Zod 3 · pino · Vitest + supertest.
 
 ## Read before coding
 1. `docs/api-contract.md` — source of truth. Do not change it inside a feature PR.
@@ -27,7 +27,7 @@ test/
 ## Patterns (must follow)
 - Router = factory `xxxRouter(deps: ModuleDeps)`; use `deps.db` and `deps.now()` (never `new Date()` in logic, never import the global `db`).
 - Router: parse input with `parseBody/parseQuery/parseParams` + `.strict()` Zod schemas → call service → `res.status(..).json(..)`.
-- Service: business rules, transitions, transactions (`deps.db.transaction`). Repository: Drizzle queries only, no `sql.raw` with input.
+- Service: business rules, transitions, transactions (`deps.db.$transaction`). Repository: Prisma client calls only; raw SQL only via tagged `$queryRaw` (never `$queryRawUnsafe` with input).
 - Errors: `throw new AppError('CODE')` with codes from `src/http/errors.ts`. Never send error JSON by hand. Express 5 forwards async throws.
 - Logging: `req.log` only; no `console.log`; never log bodies, passwords, OTP, cookies, tokens or emails. 4xx are `info` (automatic), use `warn` only for abuse signals.
 - Dates: accept with the `instant` helper; respond with `Date#toISOString()`.
@@ -37,8 +37,8 @@ test/
 ## Ownership (roles v3, 16 Nov 2026)
 | Agent | Role | May edit |
 |---|---|---|
-| Cursor | Backend owner | everything in this repo, including shared files (`app.ts`, `config.ts`, `db/**`, `drizzle/**`, `http/**`, `observability/**`, `test/helpers/**`, `package.json`, `docs/api-contract.md`) |
-| Codex | Reviewer + docs | `README.md` and docs only; never `src/**`, `test/**`, `drizzle/**` or the contract. Review findings go in PR comments. |
+| Cursor | Backend owner | everything in this repo, including shared files (`app.ts`, `config.ts`, `db/**`, `prisma/**`, `http/**`, `observability/**`, `test/helpers/**`, `package.json`, `docs/api-contract.md`) |
+| Codex | Reviewer + docs | `README.md` and docs only; never `src/**`, `test/**`, `prisma/**` or the contract. Review findings go in PR comments. |
 | Claude | Frontend owner | nothing here; asks for API changes through a "Contract change request" |
 
 Contract changes: separate PR titled `contract: ...`, reviewed by Codex, approved by the user, announced to the frontend.

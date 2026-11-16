@@ -1,12 +1,9 @@
-import { runMigrations } from '../../src/db/migrate.js';
-import { pool } from '../../src/db/client.js';
+import { execFileSync } from 'node:child_process';
 
-export async function setup() {
+export function setup() {
   try {
-    await runMigrations();
+    execFileSync('npx', ['prisma', 'migrate', 'deploy'], { stdio: 'pipe', env: process.env });
   } catch (err) {
     throw new Error(`Tests need PostgreSQL at DATABASE_URL (try: docker compose up -d db). ${String(err)}`);
-  } finally {
-    await pool.end();
   }
 }

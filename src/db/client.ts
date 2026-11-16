@@ -1,16 +1,18 @@
-import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
-import pg from 'pg';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { config } from '../config.js';
-import * as schema from './schema/index.js';
+import { PrismaClient, type Prisma } from '../generated/prisma/client.js';
 
-export const pool = new pg.Pool({
-  connectionString: config.databaseUrl,
-  statement_timeout: config.dbStatementTimeoutMs,
+export const db = new PrismaClient({
+  adapter: new PrismaPg({
+    connectionString: config.databaseUrl,
+    statement_timeout: config.dbStatementTimeoutMs,
+  }),
 });
-export const db = drizzle(pool, { schema });
 
-export type Database = NodePgDatabase<typeof schema>;
+export type Database = PrismaClient;
+/** What a repository needs: the client itself or the `tx` handed out by `db.$transaction`. */
+export type Executor = Prisma.TransactionClient;
 
 export async function pingDb(): Promise<void> {
-  await pool.query('select 1');
+  await db.$queryRaw`select 1`;
 }

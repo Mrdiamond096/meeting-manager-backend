@@ -1,42 +1,43 @@
-import { and, asc, count, desc, eq, gte, lt, sql, type SQL } from 'drizzle-orm';
-import type { Database } from '../../db/client.js';
-import { candidates, feedback, meetings } from '../../db/schema/index.js';
+import type { Executor } from '../../db/client.js';
+import type { Candidate, Meeting, Prisma } from '../../generated/prisma/client.js';
 import type { ListMeetings } from './schemas.js';
 
-type Executor = Pick<Database, 'select' | 'insert' | 'update' | 'delete'>;
 export interface MeetingRow {
-  meeting: typeof meetings.$inferSelect;
-  candidate: typeof candidates.$inferSelect | null;
+  meeting: Meeting;
+  candidate: Candidate | null;
 }
 
+const toRow = ({ candidate, ...meeting }: Meeting & { candidate: Candidate | null }): MeetingRow =>
+  ({ meeting, candidate });
+
 export function meetingRepository(db: Executor) {
-  const joined = () => db.select({ meeting: meetings, candidate: candidates })
-    .from(meetings).leftJoin(candidates, eq(meetings.candidateId, candidates.id));
-  const predicate = (query: ListMeetings, userId: string) => {
-    const conditions: SQL[] = [];
-    if (query.status) conditions.push(eq(meetings.status, query.status));
-    if (query.from) conditions.push(gte(meetings.dueDate, query.from));
-    if (query.to) conditions.push(lt(meetings.dueDate, query.to));
-    if (query.mine) conditions.push(eq(meetings.createdBy, userId));
-    if ('candidateId' in query && query.candidateId) conditions.push(eq(meetings.candidateId, query.candidateId));
-    return and(...conditions);
-  };
+  const predicate = (query: ListMeetings, userId: string): Prisma.MeetingWhereInput => ({
+    status: query.status,
+    dueDate: { gte: query.from, lt: query.to },
+    createdBy: query.mine ? userId : undefined,
+    candidateId: 'candidateId' in query ? query.candidateId : undefined,
+  });
   return {
-    find: async (id: string) => (await joined().where(eq(meetings.id, id)).limit(1))[0],
-    list: (query: ListMeetings, userId: string, limit: number, offset = 0) => joined()
-      .where(predicate(query, userId)).orderBy(asc(meetings.dueDate), asc(meetings.id)).limit(limit).offset(offset),
-    total: async (query: ListMeetings, userId: string) =>
-      (await db.select({ value: count() }).from(meetings).where(predicate(query, userId)))[0]!.value,
-    candidate: async (id: string) => (await db.select().from(candidates).where(eq(candidates.id, id)).limit(1))[0],
-    insertCandidate: async (value: typeof candidates.$inferInsert) =>
-      (await db.insert(candidates).values(value).returning())[0]!,
-    insert: async (value: typeof meetings.$inferInsert) => (await db.insert(meetings).values(value).returning())[0]!,
-    update: async (id: string, version: number, value: Partial<typeof meetings.$inferInsert>) =>
-      (await db.update(meetings).set({ ...value, version: sql`${meetings.version} + 1` })
-        .where(and(eq(meetings.id, id), sql`${meetings.version} = ${version}::bigint`)).returning())[0],
-    remove: async (id: string, version: number) => (await db.delete(meetings)
-      .where(and(eq(meetings.id, id), sql`${meetings.version} = ${version}::bigint`)).returning({ id: meetings.id }))[0],
-    feedback: (id: string) => db.select().from(feedback).where(eq(feedback.meetingId, id))
-      .orderBy(desc(feedback.createdAt), desc(feedback.id)),
+    find: async (id: string) => {
+      const row = await db.meeting.findUnique({ where: { id }, include: { candidate: true } });
+      return row ? toRow(row) : null;
+    },
+    list: async (query: ListMeetings, userId: string, limit: number, offset = 0) =>
+      (await db.meeting.findMany({
+        where: predicate(query, userId), include: { candidate: true },
+        orderBy: [{ dueDate: 'asc' }, { id: 'asc' }], take: limit, skip: offset,
+      })).map(toRow),
+    total: (query: ListMeetings, userId: string) => db.meeting.count({ where: predicate(query, userId) }),
+    candidate: (id: string) => db.candidate.findUnique({ where: { id } }),
+    insertCandidate: (data: Prisma.CandidateUncheckedCreateInput) => db.candidate.create({ data }),
+    insert: (data: Prisma.MeetingUncheckedCreateInput) => db.meeting.create({ data }),
+    update: async (id: string, version: number, data: Prisma.MeetingUncheckedUpdateManyInput) =>
+      (await db.meeting.updateManyAndReturn({
+        where: { id, version }, data: { ...data, version: { increment: 1 } },
+      }))[0],
+    remove: async (id: string, version: number) => (await db.meeting.deleteMany({ where: { id, version } })).count > 0,
+    feedback: (id: string) => db.feedback.findMany({
+      where: { meetingId: id }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    }),
   };
 }

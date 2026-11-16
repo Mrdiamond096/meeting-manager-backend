@@ -1,4 +1,4 @@
-import type { feedback } from '../../db/schema/feedback.js';
+import type { Feedback } from '../../generated/prisma/client.js';
 import type { MeetingRow } from './repository.js';
 
 export function toMeeting({ meeting: m, candidate: c }: MeetingRow, userId: string) {
@@ -11,7 +11,7 @@ export function toMeeting({ meeting: m, candidate: c }: MeetingRow, userId: stri
   };
 }
 
-export function toFeedback(row: typeof feedback.$inferSelect) {
+export function toFeedback(row: Feedback) {
   return { id: row.id, meetingId: row.meetingId, body: row.body, createdById: row.createdBy,
     createdAt: row.createdAt.toISOString() };
 }

@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { candidates, meetings } from '../../src/db/schema/index.js';
 import { createTestApp, loginAs } from '../helpers/app.js';
 import { createUser, resetDb, testDb } from '../helpers/db.js';
 
@@ -20,7 +19,7 @@ describe('candidates', () => {
     expect(second.status).toBe(201);
     expect(first.body).toEqual({ id: expect.any(String), name: 'Alice', position: 'Software Engineer', createdAt: now().toISOString() });
     expect(second.body.id).not.toBe(first.body.id);
-    const rows = await testDb.select().from(candidates);
+    const rows = await testDb.candidate.findMany();
     expect(rows).toHaveLength(2);
     expect(rows.every((row) => row.createdBy === user.id)).toBe(true);
   });
@@ -31,14 +30,14 @@ describe('candidates', () => {
     const res = await request(app).post(root).send(body);
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
-    expect(await testDb.select().from(candidates)).toEqual([]);
+    expect(await testDb.candidate.findMany()).toEqual([]);
   });
 
   it('searches names case-insensitively, caps at ten and returns newest first', async () => {
     const { app } = await loginAs();
-    const rows = await testDb.insert(candidates).values(Array.from({ length: 12 }, (_, i) => ({
+    const rows = await testDb.candidate.createManyAndReturn({ data: Array.from({ length: 12 }, (_, i) => ({
       name: `Alice ${i}`, position: 'Software Engineer', createdAt: new Date(Date.UTC(2026, 10, i + 1)),
-    }))).returning();
+    })) });
     const res = await request(app).get(root).query({ q: ' aLiCe ' });
     expect(res.status).toBe(200);
     expect(res.body.items.map((c: { id: string }) => c.id)).toEqual(rows.slice(2).reverse().map((row) => row.id));
@@ -47,10 +46,10 @@ describe('candidates', () => {
 
   it('treats SQL patterns and injection-looking text as literal search text', async () => {
     const { app } = await loginAs();
-    await testDb.insert(candidates).values([
+    await testDb.candidate.createMany({ data: [
       { name: '100%_\\Alice', position: 'Software Engineer' },
       { name: '100xyzAlice', position: 'Software Engineer' },
-    ]);
+    ] });
     const res = await request(app).get(root).query({ q: '100%_\\' });
     expect(res.body.items.map((c: { name: string }) => c.name)).toEqual(['100%_\\Alice']);
     expect((await request(app).get(root).query({ q: "' OR 1=1 --" })).body.items).toEqual([]);
@@ -77,7 +76,7 @@ describe('candidates', () => {
     const first = await request(app).post(root).send(input);
     const second = await request(app).post(root).send(input);
     const candidateId = first.body.id;
-    const rows = await testDb.insert(meetings).values([
+    const rows = await testDb.meeting.createManyAndReturn({ data: [
       { title: 'At boundary', dueDate: now(), candidateId, createdBy: user.id },
       { title: 'Future', dueDate: new Date('2026-11-20T00:00:00Z'), candidateId, createdBy: other.id },
       { title: 'Past', dueDate: new Date('2026-11-10T00:00:00Z'), candidateId },
@@ -85,7 +84,7 @@ describe('candidates', () => {
       { title: 'Cancelled past', dueDate: new Date('2026-11-09T00:00:00Z'), candidateId, status: 'CANCELLED' },
       { title: 'Different person', dueDate: now(), candidateId: second.body.id },
       { title: 'Generic', dueDate: now() },
-    ]).returning();
+    ] });
     const res = await request(app).get(`${root}/${candidateId}`);
     expect(res.status).toBe(200);
     expect(res.body.candidate).toEqual(first.body);

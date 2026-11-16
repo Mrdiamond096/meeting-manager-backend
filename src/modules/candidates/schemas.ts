@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CANDIDATE_POSITIONS } from '../../db/schema/candidates.js';
+import { CANDIDATE_POSITIONS } from '../../db/constants.js';
 
 export const emptyQuery = z.object({}).strict();
 export const searchQuery = z.object({ q: z.string().trim().min(1).max(120) }).strict();

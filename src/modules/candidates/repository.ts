@@ -1,20 +1,22 @@
-import { and, asc, desc, eq, gte, ilike, lt, ne, or } from 'drizzle-orm';
-import type { Database } from '../../db/client.js';
-import { candidates, meetings } from '../../db/schema/index.js';
+import type { Executor } from '../../db/client.js';
+import type { Prisma } from '../../generated/prisma/client.js';
 
-export function candidateRepository(db: Database) {
+export function candidateRepository(db: Executor) {
   return {
-    search: (query: string) => db.select().from(candidates)
-      .where(ilike(candidates.name, `%${query.replace(/[\\%_]/g, '\\$&')}%`))
-      .orderBy(desc(candidates.createdAt), desc(candidates.id)).limit(10),
-    find: async (id: string) => (await db.select().from(candidates).where(eq(candidates.id, id)).limit(1))[0],
-    create: async (value: typeof candidates.$inferInsert) =>
-      (await db.insert(candidates).values(value).returning())[0]!,
-    upcoming: (id: string, now: Date) => db.select().from(meetings)
-      .where(and(eq(meetings.candidateId, id), gte(meetings.dueDate, now), ne(meetings.status, 'CANCELLED')))
-      .orderBy(asc(meetings.dueDate), asc(meetings.id)),
-    history: (id: string, now: Date) => db.select().from(meetings)
-      .where(and(eq(meetings.candidateId, id), or(lt(meetings.dueDate, now), eq(meetings.status, 'CANCELLED'))))
-      .orderBy(desc(meetings.dueDate), desc(meetings.id)),
+    search: (query: string) => db.candidate.findMany({
+      // Prisma passes LIKE wildcards through unescaped, so treat user text literally here.
+      where: { name: { contains: query.replace(/[\\%_]/g, '\\$&'), mode: 'insensitive' } },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 10,
+    }),
+    find: (id: string) => db.candidate.findUnique({ where: { id } }),
+    create: (data: Prisma.CandidateUncheckedCreateInput) => db.candidate.create({ data }),
+    upcoming: (id: string, now: Date) => db.meeting.findMany({
+      where: { candidateId: id, dueDate: { gte: now }, status: { not: 'CANCELLED' } },
+      orderBy: [{ dueDate: 'asc' }, { id: 'asc' }],
+    }),
+    history: (id: string, now: Date) => db.meeting.findMany({
+      where: { candidateId: id, OR: [{ dueDate: { lt: now } }, { status: 'CANCELLED' }] },
+      orderBy: [{ dueDate: 'desc' }, { id: 'desc' }],
+    }),
   };
 }

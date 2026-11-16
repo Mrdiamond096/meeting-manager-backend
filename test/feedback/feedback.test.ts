@@ -1,14 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { feedback, meetings } from '../../src/db/schema/index.js';
 import { createTestApp, loginAs } from '../helpers/app.js';
 import { resetDb, testDb } from '../helpers/db.js';
 
 const now = () => new Date('2026-11-15T09:00:00.000Z');
 const url = (id: string) => `/api/v1/meetings/${id}/feedback`;
-const seed = async () => (await testDb.insert(meetings).values({ title: 'Interview', dueDate: now() }).returning())[0]!;
+const seed = () => testDb.meeting.create({ data: { title: 'Interview', dueDate: now() } });
 
 describe('feedback', () => {
   beforeEach(resetDb);
@@ -23,10 +21,10 @@ describe('feedback', () => {
     expect(first.body).toEqual({ id: expect.any(String), meetingId: meeting.id, body: 'First note',
       createdById: user.id, createdAt: now().toISOString() });
     expect(second.body.id).not.toBe(first.body.id);
-    const rows = await testDb.select().from(feedback);
+    const rows = await testDb.feedback.findMany();
     expect(rows.map((row) => row.body)).toEqual(expect.arrayContaining(['First note', '<script>plain text</script>']));
     expect(rows).toHaveLength(2);
-    const [unchanged] = await testDb.select().from(meetings).where(eq(meetings.id, meeting.id));
+    const unchanged = await testDb.meeting.findUniqueOrThrow({ where: { id: meeting.id } });
     expect(unchanged?.version).toBe(1);
   });
 
@@ -38,7 +36,7 @@ describe('feedback', () => {
     const res = await request(app).post(url(meeting.id)).send(body);
     expect(res.status).toBe(400);
     expect(res.body.error).toMatchObject({ code: 'VALIDATION_ERROR', requestId: expect.any(String) });
-    expect(await testDb.select().from(feedback)).toEqual([]);
+    expect(await testDb.feedback.findMany()).toEqual([]);
   });
 
   it('accepts the exact 5000-character boundary', async () => {
@@ -55,13 +53,13 @@ describe('feedback', () => {
     expect((await request(app).post(url('bad-id')).send({ body: 'Note' })).status).toBe(400);
     const meeting = await seed();
     expect((await request(app).post(`${url(meeting.id)}?extra=1`).send({ body: 'Note' })).status).toBe(400);
-    expect(await testDb.select().from(feedback)).toEqual([]);
+    expect(await testDb.feedback.findMany()).toEqual([]);
   });
 
   it('requires a session, but permits any authenticated team member', async () => {
     const first = await loginAs();
     const second = await loginAs();
-    const [meeting] = await testDb.insert(meetings).values({ title: 'Owned by first', dueDate: now(), createdBy: first.user.id }).returning();
+    const meeting = await testDb.meeting.create({ data: { title: 'Owned by first', dueDate: now(), createdBy: first.user.id } });
     expect((await request(createTestApp()).post(url(meeting!.id)).send({ body: 'Anonymous' })).status).toBe(401);
     const res = await request(second.app).post(url(meeting!.id)).send({ body: 'Team note' });
     expect(res.status).toBe(201);
@@ -75,7 +73,7 @@ describe('feedback', () => {
     const endpoint = `${url(meeting.id)}/${created.body.id}`;
     expect((await request(app).patch(endpoint).send({ body: 'Changed' })).status).toBe(404);
     expect((await request(app).delete(endpoint)).status).toBe(404);
-    expect((await testDb.select().from(feedback))[0]?.body).toBe('Immutable');
+    expect((await testDb.feedback.findMany())[0]?.body).toBe('Immutable');
   });
 
   it('retains notes when cancelled and cascades only feedback for the deleted meeting', async () => {
@@ -84,10 +82,10 @@ describe('feedback', () => {
     const second = await seed();
     await request(app).post(url(first.id)).send({ body: 'First' });
     await request(app).post(url(second.id)).send({ body: 'Second' });
-    await testDb.update(meetings).set({ status: 'CANCELLED' }).where(eq(meetings.id, first.id));
-    expect(await testDb.select().from(feedback)).toHaveLength(2);
-    await testDb.delete(meetings).where(eq(meetings.id, first.id));
-    const remaining = await testDb.select().from(feedback);
+    await testDb.meeting.update({ where: { id: first.id }, data: { status: 'CANCELLED' } });
+    expect(await testDb.feedback.findMany()).toHaveLength(2);
+    await testDb.meeting.delete({ where: { id: first.id } });
+    const remaining = await testDb.feedback.findMany();
     expect(remaining).toHaveLength(1);
     expect(remaining[0]?.meetingId).toBe(second.id);
   });
@@ -97,9 +95,9 @@ describe('feedback', () => {
     const meeting = await seed();
     const [res] = await Promise.all([
       request(app).post(url(meeting.id)).send({ body: 'Racing note' }),
-      testDb.delete(meetings).where(eq(meetings.id, meeting.id)),
+      testDb.meeting.delete({ where: { id: meeting.id } }),
     ]);
     expect([201, 404]).toContain(res.status);
-    expect(await testDb.select().from(feedback)).toEqual([]);
+    expect(await testDb.feedback.findMany()).toEqual([]);
   });
 });

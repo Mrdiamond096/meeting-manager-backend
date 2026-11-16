@@ -38,11 +38,11 @@ test/
 - ESM imports end with `.js`.
 - Tests: `beforeEach(resetDb)`; `const { app, user } = await loginAs()` for authenticated requests; supertest against the app.
 
-## Ownership (roles v3, 16 Nov 2026)
+## Ownership (roles v4, 16 Nov 2026)
 | Agent | Role | May edit |
 |---|---|---|
-| Cursor | Backend owner | everything in this repo, including shared files (`app.ts`, `config.ts`, `db/**`, `prisma/**`, `http/**`, `observability/**`, `test/helpers/**`, `package.json`, `docs/api-contract.md`) |
-| Codex | Reviewer + docs | `README.md` and docs only; never `src/**`, `test/**`, `prisma/**` or the contract. Review findings go in PR comments. |
+| Cursor | Backend owner | everything in this repo, including shared files (`app.ts`, `config.ts`, `db/**`, `prisma/**`, `http/**`, `observability/**`, `test/helpers/**`, `package.json`, `docs/api-contract.md`, `README.md`, `.github/**`) |
+| Codex | Reviewer | nothing here; reviews every PR (README included: checks commands, env vars and defaults against the code). Review findings go in PR comments. |
 | Claude | Frontend owner | nothing here; asks for API changes through a "Contract change request" |
 
 Contract changes: separate PR titled `contract: ...`, reviewed by Codex, approved by the user, announced to the frontend.

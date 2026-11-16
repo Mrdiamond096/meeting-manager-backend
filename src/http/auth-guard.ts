@@ -1,5 +1,5 @@
 import type { RequestHandler } from 'express';
-import type { USER_ROLES } from '../db/schema/users.js';
+import type { USER_ROLES } from '../db/constants.js';
 import { AppError } from './errors.js';
 
 export type UserRole = (typeof USER_ROLES)[number];

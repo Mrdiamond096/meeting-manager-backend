@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { candidates, feedback, meetings } from '../../src/db/schema/index.js';
 import { meetingService } from '../../src/modules/meetings/service.js';
 import { createTestApp, loginAs } from '../helpers/app.js';
 import { createUser, resetDb, testDb } from '../helpers/db.js';
@@ -27,8 +25,8 @@ describe('meetings CRUD', () => {
     const detail = await request(app).get(`${root}/${res.body.id}`);
     expect(detail.status).toBe(200);
     expect(detail.body).toEqual({ ...res.body, feedback: [] });
-    const persisted = await testDb.select().from(meetings).where(eq(meetings.id, res.body.id));
-    expect(persisted[0]?.createdBy).toBe(user.id);
+    const persisted = await testDb.meeting.findUniqueOrThrow({ where: { id: res.body.id } });
+    expect(persisted.createdBy).toBe(user.id);
   });
 
   it.each([
@@ -48,8 +46,8 @@ describe('meetings CRUD', () => {
     const res = await request(app).post(root).send(body);
     expect(res.status).toBe(400);
     expect(res.body.error).toMatchObject({ code: 'VALIDATION_ERROR', details: expect.any(Array), requestId: expect.any(String) });
-    expect(await testDb.select().from(meetings)).toEqual([]);
-    expect(await testDb.select().from(candidates)).toEqual([]);
+    expect(await testDb.meeting.findMany()).toEqual([]);
+    expect(await testDb.candidate.findMany()).toEqual([]);
   });
 
   it('keeps duplicate titles and same-name candidates distinct; joins only by identity', async () => {
@@ -64,13 +62,13 @@ describe('meetings CRUD', () => {
     const existing = await request(app).post(root).send({ ...input, candidateId: first.body.candidate.id });
     expect(existing.status).toBe(201);
     expect(existing.body.candidate).toEqual(first.body.candidate);
-    expect(await testDb.select().from(candidates)).toHaveLength(2);
+    expect(await testDb.candidate.findMany()).toHaveLength(2);
   });
 
   it('returns 404 for an unknown candidate without creating a meeting', async () => {
     const { app } = await loginAs();
     expect((await request(app).post(root).send({ ...input, candidateId: randomUUID() })).status).toBe(404);
-    expect(await testDb.select().from(meetings)).toEqual([]);
+    expect(await testDb.meeting.findMany()).toEqual([]);
   });
 
   it('rolls back the inline candidate when a later database insert fails', async () => {
@@ -80,8 +78,8 @@ describe('meetings CRUD', () => {
       title: 'x'.repeat(151), description: '', status: 'PENDING', dueDate: now(),
       candidate: { name: 'Must roll back', position: 'Software Engineer' },
     }, user.id)).rejects.toThrow();
-    expect(await testDb.select().from(candidates)).toEqual([]);
-    expect(await testDb.select().from(meetings)).toEqual([]);
+    expect(await testDb.candidate.findMany()).toEqual([]);
+    expect(await testDb.meeting.findMany()).toEqual([]);
   });
 
   it('checks cross-field rules against the merged record and supports explicit clearing', async () => {
@@ -146,18 +144,18 @@ describe('meetings CRUD', () => {
     const { app, user } = await loginAs();
     const created = await request(app).post(root).send(input);
     const url = `${root}/${created.body.id}`;
-    await testDb.insert(feedback).values([
+    await testDb.feedback.createMany({ data: [
       { meetingId: created.body.id, body: 'Older', createdBy: user.id, createdAt: new Date('2026-11-14T00:00:00Z') },
       { meetingId: created.body.id, body: 'Newer', createdBy: user.id, createdAt: now() },
-    ]);
+    ] });
     const detail = await request(app).get(url);
     expect(detail.body.feedback.map((f: { body: string }) => f.body)).toEqual(['Newer', 'Older']);
     expect(detail.body.feedback[0]).toEqual({ id: expect.any(String), meetingId: created.body.id,
       body: 'Newer', createdById: user.id, createdAt: now().toISOString() });
     await request(app).post(`${url}/cancel`).send({ version: 1 });
-    expect(await testDb.select().from(feedback)).toHaveLength(2);
+    expect(await testDb.feedback.findMany()).toHaveLength(2);
     await request(app).delete(`${url}?version=2`);
-    expect(await testDb.select().from(feedback)).toEqual([]);
+    expect(await testDb.feedback.findMany()).toEqual([]);
   });
 
   it('does not restrict shared team edits to the creator', async () => {

@@ -41,7 +41,7 @@ export function meetingService(deps: ModuleDeps) {
     },
     async create(input: CreateMeeting, userId: string) {
       validateState(input);
-      return deps.db.transaction(async (tx) => {
+      return deps.db.$transaction(async (tx) => {
         const transactional = meetingRepository(tx);
         const { candidate, ...values } = input;
         let candidateId = input.candidateId;

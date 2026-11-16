@@ -1,16 +1,8 @@
 import { createApp } from './app.js';
 import { config } from './config.js';
-import { db, pingDb, pool } from './db/client.js';
-import { runMigrations } from './db/migrate.js';
+import { db, pingDb } from './db/client.js';
 import { createAuthenticate } from './modules/auth/authenticate.js';
 import { logger } from './observability/logger.js';
-
-try {
-  await runMigrations();
-} catch (err) {
-  logger.fatal({ err }, 'database migration failed');
-  process.exit(1);
-}
 
 const now = () => new Date();
 const server = createApp({ pingDb, db, now, authenticate: createAuthenticate({ db, now }), appVersion: config.appVersion }).listen(config.port, () => {
@@ -20,7 +12,7 @@ const server = createApp({ pingDb, db, now, authenticate: createAuthenticate({ d
 function shutdown(signal: string) {
   logger.info({ signal }, 'shutting down');
   server.close(() => {
-    void pool.end().then(() => process.exit(0));
+    void db.$disconnect().then(() => process.exit(0));
   });
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));

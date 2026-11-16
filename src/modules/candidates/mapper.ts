@@ -1,5 +1,5 @@
-import type { candidates } from '../../db/schema/index.js';
+import type { Candidate } from '../../generated/prisma/client.js';
 
-export function toCandidate(row: typeof candidates.$inferSelect) {
+export function toCandidate(row: Candidate) {
   return { id: row.id, name: row.name, position: row.position, createdAt: row.createdAt.toISOString() };
 }

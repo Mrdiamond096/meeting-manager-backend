@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { CANDIDATE_POSITIONS } from '../../db/schema/candidates.js';
+import { CANDIDATE_POSITIONS } from '../../db/constants.js';
 import { idParams, parseBody, parseParams, parseQuery } from '../../http/validate.js';
 import type { ModuleDeps } from '../deps.js';
 import { createSchema, emptyQuery, searchQuery } from './schemas.js';

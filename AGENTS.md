@@ -15,10 +15,14 @@ Node 24 · Express 5 · TypeScript (ESM, `NodeNext`) · Prisma 7 (`@prisma/adapt
 src/
   app.ts                  createApp(deps) — mounts routers (shared, do not edit in feature PRs)
   config.ts               env via Zod (shared)
-  db/schema/*.ts          one file per table (shared; schema changes = separate PR + `npm run db:generate`)
+  db/                     client.ts (Prisma client, `Database`/`Executor` types), constants.ts (shared enums-as-strings)
   http/                   errors.ts (AppError + codes), error-handler.ts, validate.ts, rate-limit.ts, auth-guard.ts
   observability/          logger.ts, http-logger.ts
+  generated/prisma/       generated client (gitignored, `npm run db:generate`)
   modules/<domain>/       router.ts · service.ts · repository.ts · schemas.ts (+ domain files)
+prisma/
+  schema.prisma           models (shared; schema changes = separate PR + `npm run db:migrate`, review the generated SQL)
+  migrations/             SQL migrations; CHECK constraints and expression indexes are hand-written here
 test/
   helpers/                resetDb, createUser, createTestApp, loginAs
   <domain>/*.test.ts

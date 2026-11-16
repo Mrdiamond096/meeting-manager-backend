@@ -10,10 +10,25 @@ export interface MeetingRow {
 const toRow = ({ candidate, ...meeting }: Meeting & { candidate: Candidate | null }): MeetingRow =>
   ({ meeting, candidate });
 
+/** A meeting without `endAt` lasts this long on the calendar (contract: range view; same as the frontend). */
+export const RANGE_DEFAULT_MINUTES = 30;
+
+/**
+ * Range view (calendar): meetings that overlap [from, to), i.e. start before `to` and end after `from`, so a meeting
+ * that started earlier and is still running shows up. `coalesce(endAt, dueDate + 30 min) > from` written as an OR.
+ */
+const overlapping = (from: Date, to: Date): Prisma.MeetingWhereInput => ({
+  dueDate: { lt: to },
+  OR: [
+    { endAt: { gt: from } },
+    { endAt: null, dueDate: { gt: new Date(from.getTime() - RANGE_DEFAULT_MINUTES * 60_000) } },
+  ],
+});
+
 export function meetingRepository(db: Executor) {
   const predicate = (query: ListMeetings, userId: string): Prisma.MeetingWhereInput => ({
     status: query.status,
-    dueDate: { gte: query.from, lt: query.to },
+    ...('view' in query ? overlapping(query.from, query.to) : { dueDate: { gte: query.from, lt: query.to } }),
     createdBy: query.mine ? userId : undefined,
     candidateId: 'candidateId' in query ? query.candidateId : undefined,
   });

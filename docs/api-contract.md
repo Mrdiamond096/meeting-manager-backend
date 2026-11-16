@@ -115,7 +115,8 @@ Order: `dueDate asc, id asc`. Page past the end → 200 with `items: []`.
 
 ### `GET /meetings?view=range` — calendar (ADR-014)
 Query: `view=range` (required), `from`, `to` (required, `to - from` ≤ 42 days), `status`, `mine`. No pagination params allowed.
-→ 200 `{ items: Meeting[] }` (max 500, same order) · 400 when range missing/too long or > 500 matches
+Items are the meetings that **overlap** `[from, to)`: `dueDate < to` and `endAt > from`, where a meeting without `endAt` counts as 30 minutes (`dueDate + 30 min > from`). A meeting that started before `from` and is still running is included, so a calendar shows it on every day it covers. (The paged list without `view` keeps filtering on `dueDate` only.)
+→ 200 `{ items: Meeting[] }` (max 500 overlapping meetings, same order: `dueDate` asc, `id` asc) · 400 when range missing/too long or > 500 matches
 
 ### `GET /meetings/:id`
 → 200 `Meeting & { feedback: Feedback[] }` (feedback newest first) · 400 · 404

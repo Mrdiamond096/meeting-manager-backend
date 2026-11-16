@@ -22,6 +22,8 @@ const envSchema = z.object({
   OTP_PROVIDER: z.enum(['mock']).default('mock'),
   /** Explicit opt-in for the local Docker demo, which runs the production image. */
   ALLOW_MOCK_OTP: bool.default('false'),
+  /** Only `make seed` sets this, for one `docker compose exec`. Never set it on the server itself. */
+  ALLOW_DEMO_SEED: bool.default('false'),
   OTP_MOCK_CODE: z.string().regex(/^\d{6}$/).default('112233'),
 });
 
@@ -62,6 +64,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     rateLimitEnabled: e.RATE_LIMIT_ENABLED,
     cookieSecure: e.COOKIE_SECURE,
     allowedOrigins: e.ALLOWED_ORIGINS,
+    allowDemoSeed: e.ALLOW_DEMO_SEED,
     otp: { provider: e.OTP_PROVIDER, mockCode: e.OTP_MOCK_CODE, allowMockInProduction: e.ALLOW_MOCK_OTP },
   };
 }

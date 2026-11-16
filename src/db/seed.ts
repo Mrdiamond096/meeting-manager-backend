@@ -104,6 +104,14 @@ function startOfBangkokDay(now: Date): Date {
   return new Date(midnightLocal - BANGKOK_OFFSET_HOURS * HOUR_MS);
 }
 
+/** The demo account has a published password, so in production the seed needs an explicit opt-in. */
+export function demoSeedRefusal(settings: { env: string; allowDemoSeed: boolean }): string | undefined {
+  if (settings.env === 'production' && !settings.allowDemoSeed) {
+    return 'The demo seed creates a user with a published password and is refused when NODE_ENV=production unless ALLOW_DEMO_SEED=true';
+  }
+  return undefined;
+}
+
 export interface SeedOptions {
   email: string;
   /** Already hashed with the same bcrypt cost as registration. */

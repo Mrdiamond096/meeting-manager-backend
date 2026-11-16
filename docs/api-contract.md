@@ -141,7 +141,9 @@ Query: `view=range` (required), `from`, `to` (required, `to - from` ≤ 42 days)
 → 201 `Meeting` + `Location: /api/v1/meetings/:id` · 400 · 404 (`candidateId` unknown)
 
 ### `PATCH /meetings/:id`
-Body: any subset of `title, description, dueDate, endAt, status, meetingType, provider, candidateId` **plus required `version`**. Empty patch (only `version`) → 400. Cross-field rules are checked on the merged record. `status` here may only be `PENDING` or `CONFIRMED`.
+Body: any subset of `title, description, dueDate, endAt, status, meetingType, provider, candidateId, candidate` **plus required `version`**. Empty patch (only `version`) → 400. Cross-field rules are checked on the merged record. `status` here may only be `PENDING` or `CONFIRMED`.
+- **Clearing:** `endAt`, `meetingType`, `provider` and `candidateId` accept `null` to clear the value (→ 200). An omitted field is left as it is. `title`, `description`, `dueDate` and `status` cannot be null. Clearing `meetingType` while `provider` stays set → 400 (`provider` needs an online meeting), so send both as `null`.
+- **Inline candidate:** `candidate: { name, position }` creates a candidate and links it in the same transaction as the edit, like on `POST`. Sending it together with `candidateId` (including `null`) → 400. On any failure (400, 404, 409) no candidate is left behind. The candidate that was linked before is not deleted.
 → 200 `Meeting` · 400 · 404 · 409 `VERSION_CONFLICT` / `INVALID_TRANSITION`
 
 ### `POST /meetings/:id/cancel`

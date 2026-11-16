@@ -100,6 +100,98 @@ describe('meetings CRUD', () => {
     expect(updated.body.createdAt).toBe(created.body.createdAt);
   });
 
+  describe('PATCH with an inline new candidate', () => {
+    const alice = { name: ' Alice ', position: 'Software Engineer' };
+
+    it('creates the candidate and links it in the same edit', async () => {
+      const { app, user } = await loginAs({ now });
+      const created = await request(app).post(root).send({ ...input, candidate: { name: 'Bob', position: 'QA Engineer' } });
+      const url = `${root}/${created.body.id}`;
+
+      const res = await request(app).patch(url).send({ version: 1, title: 'Revised', candidate: alice });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ title: 'Revised', version: 2, candidate: { name: 'Alice', position: 'Software Engineer' } });
+      expect(res.body.candidate.id).not.toBe(created.body.candidate.id);
+      const stored = await testDb.candidate.findUniqueOrThrow({ where: { id: res.body.candidate.id } });
+      expect(stored.createdBy).toBe(user.id);
+      expect(await testDb.candidate.count()).toBe(2); // Bob stays: he may have other meetings
+      expect((await request(app).get(url)).body.candidate.id).toBe(res.body.candidate.id);
+    });
+
+    it.each([
+      ['an existing candidateId', { candidateId: randomUUID() }],
+      ['candidateId null', { candidateId: null }],
+      ['an unknown position', { candidate: { name: 'Alice', position: 'Unknown' } }],
+      ['an unknown key', { candidate: { name: 'Alice', position: 'Software Engineer', extra: true } }],
+      ['an empty name', { candidate: { name: '   ', position: 'Software Engineer' } }],
+      ['a time that breaks the cross-field rules', { dueDate: '2026-11-20T05:00:00Z', endAt: '2026-11-20T04:00:00Z' }],
+    ])('rejects %s with 400 and creates no candidate', async (_name, extra) => {
+      const { app } = await loginAs({ now });
+      const created = await request(app).post(root).send(input);
+
+      const res = await request(app).patch(`${root}/${created.body.id}`).send({ version: 1, candidate: alice, ...extra });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      expect(await testDb.candidate.count()).toBe(0);
+      expect((await testDb.meeting.findUniqueOrThrow({ where: { id: created.body.id } })).version).toBe(1);
+    });
+
+    it('answers 409 on a stale version and leaves no candidate behind', async () => {
+      const { app } = await loginAs({ now });
+      const created = await request(app).post(root).send(input);
+      const url = `${root}/${created.body.id}`;
+      await request(app).patch(url).send({ version: 1, title: 'Someone else edited' });
+
+      const res = await request(app).patch(url).send({ version: 1, candidate: alice });
+
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('VERSION_CONFLICT');
+      expect(await testDb.candidate.count()).toBe(0);
+    });
+
+    it('answers 404 for a missing meeting without creating a candidate', async () => {
+      const { app } = await loginAs({ now });
+      const res = await request(app).patch(`${root}/${randomUUID()}`).send({ version: 1, candidate: alice });
+      expect(res.status).toBe(404);
+      expect(await testDb.candidate.count()).toBe(0);
+    });
+
+    it('creates exactly one candidate when two edits hold the same version', async () => {
+      const { app } = await loginAs({ now });
+      const created = await request(app).post(root).send(input);
+      const url = `${root}/${created.body.id}`;
+
+      const results = await Promise.all(
+        ['First', 'Second', 'Third'].map((name) =>
+          request(app).patch(url).send({ version: 1, candidate: { name, position: 'Software Engineer' } }),
+        ),
+      );
+
+      expect(results.map((r) => r.status).sort()).toEqual([200, 409, 409]);
+      const winner = results.find((r) => r.status === 200)!;
+      const candidates = await testDb.candidate.findMany();
+      expect(candidates.map((c) => c.id)).toEqual([winner.body.candidate.id]);
+    });
+
+    it('rolls the candidate back when the meeting update fails in the database', async () => {
+      const user = await createUser();
+      const meeting = await testDb.meeting.create({
+        data: { title: 'Existing', dueDate: now(), createdBy: user.id, createdAt: now(), updatedAt: now() },
+      });
+      // A title past the column length fails the UPDATE, after the candidate insert in the same transaction.
+      await expect(
+        meetingService({ db: testDb, now }).patch(
+          meeting.id,
+          { version: 1, title: 'x'.repeat(151), candidate: { name: 'Must roll back', position: 'Software Engineer' } },
+          user.id,
+        ),
+      ).rejects.toThrow();
+      expect(await testDb.candidate.findMany()).toEqual([]);
+    });
+  });
+
   it.each([{ version: 1 }, { title: 'No version' }, { version: 0, title: 'Bad' },
     { version: '1', title: 'Bad' }, { version: 1, status: 'CANCELLED' },
     { version: 1, createdAt: '2026-11-20T00:00:00Z' }])('rejects invalid patches: %j', async (body) => {

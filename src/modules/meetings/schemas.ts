@@ -16,20 +16,26 @@ const fields = {
   provider: z.enum(MEETING_PROVIDERS).nullable().optional(),
   candidateId: uuid.nullable().optional(),
 };
+const inlineCandidate = z.object({ name: text.min(1).max(120), position: z.enum(CANDIDATE_POSITIONS) }).strict();
+const eitherCandidate = (v: { candidate?: unknown; candidateId?: unknown }) =>
+  !(v.candidate && v.candidateId !== undefined);
+const eitherCandidateIssue = {
+  path: ['candidate'], message: 'Choose an existing candidate or create a new one, not both',
+};
 export const createSchema = z.object({
   ...fields,
   description: fields.description.default(''),
   status: fields.status.default('PENDING'),
-  candidate: z.object({ name: text.min(1).max(120), position: z.enum(CANDIDATE_POSITIONS) }).strict().optional(),
-}).strict().refine((v) => !(v.candidate && v.candidateId !== undefined), {
-  path: ['candidate'], message: 'Choose an existing candidate or create a new one, not both',
-});
+  candidate: inlineCandidate.optional(),
+}).strict().refine(eitherCandidate, eitherCandidateIssue);
 export const patchSchema = z.object({
   title: fields.title.optional(), description: fields.description.optional(),
   dueDate: fields.dueDate.optional(), endAt: fields.endAt,
   status: fields.status.optional(), meetingType: fields.meetingType,
-  provider: fields.provider, candidateId: fields.candidateId, version: positiveVersion,
-}).strict().refine((v) => Object.keys(v).some((key) => key !== 'version'), 'Supply at least one changed field');
+  provider: fields.provider, candidateId: fields.candidateId, candidate: inlineCandidate.optional(),
+  version: positiveVersion,
+}).strict().refine((v) => Object.keys(v).some((key) => key !== 'version'), 'Supply at least one changed field')
+  .refine(eitherCandidate, eitherCandidateIssue);
 export const cancelSchema = z.object({ version: positiveVersion }).strict();
 export const deleteQuery = z.object({
   version: z.string().regex(/^\d+$/).pipe(z.coerce.number().int().positive().safe()),

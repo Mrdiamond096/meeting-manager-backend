@@ -57,9 +57,19 @@ export function meetingService(deps: ModuleDeps) {
     async patch(id: string, input: PatchMeeting, userId: string) {
       const { meeting } = await requireMeeting(id);
       checkVersion(meeting.version, input.version);
-      const { version, ...changes } = input;
+      const { version, candidate, ...changes } = input;
       if (meeting.status === 'CANCELLED' && changes.status === 'CONFIRMED') throw new AppError('INVALID_TRANSITION');
       validateState({ ...meeting, ...changes });
+      if (candidate) {
+        // The new candidate and the edit commit together: a stale version or any failure leaves no candidate behind.
+        return deps.db.$transaction(async (tx) => {
+          const transactional = meetingRepository(tx);
+          const created = await transactional.insertCandidate({ ...candidate, createdBy: userId, createdAt: deps.now() });
+          const done = await transactional.update(id, version, { ...changes, candidateId: created.id, updatedAt: deps.now() });
+          if (!done) return stale(id); // throws, which rolls the candidate back
+          return toMeeting((await transactional.find(id))!, userId);
+        });
+      }
       if (changes.candidateId && !(await repo.candidate(changes.candidateId))) throw new AppError('NOT_FOUND');
       const updated = await repo.update(id, version, { ...changes, updatedAt: deps.now() });
       return updated ? written(updated, userId) : stale(id);

@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { config } from '../../src/config.js';
 import type { OtpProvider } from '../../src/modules/auth/otp-provider.js';
+import { createPasswordHasher, type PasswordHasher } from '../../src/modules/auth/password.js';
 import { MAX_RESETS_PER_WINDOW, OTP_TTL_MS, RESET_WINDOW_MS } from '../../src/modules/auth/service.js';
 import { resetDb, testDb } from '../helpers/db.js';
 import {
@@ -292,6 +293,45 @@ describe('POST /auth/password/reset', () => {
 
     expect(logs.text()).not.toContain(NEW_PASSWORD);
     expect(logs.text()).not.toContain('"code":"112233"');
+  });
+});
+
+describe('login racing a password reset', () => {
+  const clock = createClock();
+
+  beforeEach(resetDb);
+
+  it('does not let a password checked before the reset open a login afterwards', async () => {
+    // The hasher stands in for the slow bcrypt compare: the old password is accepted, and the reset
+    // completes before login reaches its transaction.
+    const real = createPasswordHasher(4);
+    let resetOnce: (() => Promise<void>) | undefined;
+    const hasher: PasswordHasher = {
+      ...real,
+      verify: async (plain, hashed) => {
+        const ok = await real.verify(plain, hashed);
+        const run = resetOnce;
+        resetOnce = undefined;
+        await run?.();
+        return ok;
+      },
+    };
+    const app = createAuthApp({ now: clock.now, passwordHasher: hasher });
+    await signIn(app, email);
+    const { challengeId } = (await api(app).forgot({ email })).body;
+    resetOnce = async () => {
+      const done = await api(app).reset({ challengeId, code: OTP, newPassword: NEW_PASSWORD });
+      expect(done.status).toBe(204);
+    };
+
+    const res = await api(app).login({ email, password: PASSWORD });
+
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('INVALID_CREDENTIALS');
+    expect(await testDb.otpChallenge.findMany({ where: { purpose: 'LOGIN' } })).toEqual([]);
+    expect(await testDb.session.count()).toBe(0);
+    // And the new password still works afterwards.
+    expect((await api(app).login({ email, password: NEW_PASSWORD })).status).toBe(200);
   });
 });
 

@@ -104,6 +104,10 @@ export function createAuthService({ db, now, otp, hasher }: AuthServiceDeps) {
       const at = now();
       const issued = await db.$transaction(async (tx) => {
         await repo.lockUser(tx, user.id); // lock order: user, then challenge (see repo.lockUser)
+        // The password was checked before the lock. If a reset (or a re-registration) replaced it in between,
+        // that check no longer counts: the old password must not open a new login after the change.
+        const current = await repo.findUserById(tx, user.id);
+        if (!current || current.passwordHash !== user.passwordHash) throw new AppError('INVALID_CREDENTIALS');
         await repo.invalidateOpenChallenges(tx, user.id, 'LOGIN', at);
         return issueChallenge(tx, { userId: user.id, purpose: 'LOGIN' }, at);
       });

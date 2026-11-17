@@ -1,4 +1,4 @@
-FROM node:24-alpine AS deps
+FROM node:26-alpine AS deps
 WORKDIR /app
 COPY package*.json prisma.config.ts ./
 COPY prisma ./prisma
@@ -14,7 +14,7 @@ FROM deps AS build
 COPY . .
 RUN npm run build
 
-FROM node:24-alpine AS prod
+FROM node:26-alpine AS prod
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package*.json prisma.config.ts ./

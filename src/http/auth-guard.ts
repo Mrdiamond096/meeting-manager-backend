@@ -11,7 +11,7 @@ export interface AuthUser {
 
 /**
  * Populates req.user from the session cookie, or leaves it undefined.
- * Implemented by WS-B (src/modules/auth); tests inject a stub via test/helpers.
+ * The auth module provides the session implementation; tests may inject a stub.
  */
 export type Authenticate = RequestHandler;
 

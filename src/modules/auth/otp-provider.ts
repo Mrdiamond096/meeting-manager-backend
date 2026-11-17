@@ -14,7 +14,7 @@ export interface OtpProvider {
   deliver(target: OtpDelivery, code: string): Promise<void>;
 }
 
-/** Demo provider (ADR-009): always issues OTP_MOCK_CODE and delivers nothing. Refused in production by loadConfig. */
+/** Demo provider: issues OTP_MOCK_CODE without delivery; production requires ALLOW_MOCK_OTP=true. */
 export class MockOtpProvider implements OtpProvider {
   constructor(private readonly code: string) {}
 

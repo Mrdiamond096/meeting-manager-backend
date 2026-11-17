@@ -45,7 +45,7 @@ const envSchema = z.object({
   OTP_PROVIDER: z.enum(['mock']).default('mock'),
   /** Explicit opt-in for the local Docker demo, which runs the production image. */
   ALLOW_MOCK_OTP: bool.prefault('false'),
-  /** Only `make seed` sets this, for one `docker compose exec`. Never set it on the server itself. */
+  /** Opt-in for a one-off demo seed command. Never enable it on the running server. */
   ALLOW_DEMO_SEED: bool.prefault('false'),
   OTP_MOCK_CODE: z.string().regex(/^\d{6}$/).default('112233'),
 });

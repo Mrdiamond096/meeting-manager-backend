@@ -16,7 +16,7 @@ import { healthRouter } from './routes/health.js';
 export interface AppDeps {
   pingDb: () => Promise<void>;
   db: Database;
-  /** Populates req.user; WS-B provides the session implementation. */
+  /** Populates req.user from the session cookie; tests may inject an authenticator. */
   authenticate?: Authenticate;
   now?: () => Date;
   appVersion?: string;

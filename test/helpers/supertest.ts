@@ -3,16 +3,9 @@ import { createServer, type RequestListener } from 'node:http';
 import type supertestType from 'supertest';
 
 /**
- * Drop-in replacement for `supertest`, wired in through the alias in vitest.config.ts.
- *
- * Stock supertest opens and closes a throwaway server for every `request(app)`, bound to every address. Under this
- * suite's load that randomly loses a response (a 5s timeout). Binding to every address also lets the kernel hand
- * out a port that another program on the machine already uses on IPv4, so a request occasionally reached a
- * different server (a 404 where a 400 was expected).
- *
- * Instead the whole process shares ONE server, bound to 127.0.0.1 only, and every app is reached under its own
- * path prefix. The prefix is stripped before the app sees the request, so routes, `req.url` and cookies behave
- * as if the app were mounted at the root.
+ * Supertest adapter, selected by vitest.config.ts, that shares one loopback server per test process.
+ * Each app has a distinct path prefix, avoiding a new listener for every request. The prefix is stripped
+ * before dispatch so routes, req.url and cookies behave as if the app were mounted at the root.
  */
 const require = createRequire(import.meta.url);
 const real = require('supertest/index.js') as typeof supertestType;

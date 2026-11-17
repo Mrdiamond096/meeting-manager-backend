@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { config } from '../../src/config.js';
 import type { OtpProvider } from '../../src/modules/auth/otp-provider.js';
 import { MockOtpProvider } from '../../src/modules/auth/otp-provider.js';
@@ -217,17 +217,10 @@ describe('resend budget', () => {
 });
 
 describe('POST /auth/otp/resend IP backstop', () => {
-  const previous = config.rateLimitEnabled;
-  beforeEach(async () => {
-    await resetDb();
-    config.rateLimitEnabled = true;
-  });
-  afterEach(() => {
-    config.rateLimitEnabled = previous;
-  });
+  beforeEach(resetDb);
 
   it('allows 10 requests per IP per 15 minutes whatever challenge ids they carry, then 429', async () => {
-    const app = createAuthApp({ now: createClock().now });
+    const app = createAuthApp({ now: createClock().now, rateLimitConfig: { ...config, rateLimitEnabled: true } });
 
     const statuses: number[] = [];
     for (let i = 0; i < 11; i += 1) statuses.push((await api(app).resend({ challengeId: randomUUID() })).status);

@@ -1,4 +1,3 @@
-import type { Feedback } from '../../generated/prisma/client.js';
 import type { MeetingRow } from './repository.js';
 
 export function toMeeting({ meeting: m, candidate: c }: MeetingRow, userId: string) {
@@ -9,9 +8,4 @@ export function toMeeting({ meeting: m, candidate: c }: MeetingRow, userId: stri
     createdById: m.createdBy, isMine: m.createdBy === userId, version: m.version,
     createdAt: m.createdAt.toISOString(), updatedAt: m.updatedAt.toISOString(),
   };
-}
-
-export function toFeedback(row: Feedback) {
-  return { id: row.id, meetingId: row.meetingId, body: row.body, createdById: row.createdBy,
-    createdAt: row.createdAt.toISOString() };
 }

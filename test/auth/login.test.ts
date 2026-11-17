@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { config } from '../../src/config.js';
 import { createPasswordHasher } from '../../src/modules/auth/password.js';
 import { OTP_TTL_MS } from '../../src/modules/auth/service.js';
@@ -157,17 +157,10 @@ describe('POST /auth/login', () => {
 });
 
 describe('POST /auth/login rate limit', () => {
-  const previous = config.rateLimitEnabled;
-  beforeEach(async () => {
-    await resetDb();
-    config.rateLimitEnabled = true;
-  });
-  afterEach(() => {
-    config.rateLimitEnabled = previous;
-  });
+  beforeEach(resetDb);
 
   it('allows 5 attempts per IP + email per 15 minutes, then 429 even with the right password', async () => {
-    const app = createAuthApp({ now: createClock().now });
+    const app = createAuthApp({ now: createClock().now, rateLimitConfig: { ...config, rateLimitEnabled: true } });
     const email = 'limited@example.test';
     await signIn(app, email);
 
@@ -181,7 +174,7 @@ describe('POST /auth/login rate limit', () => {
   });
 
   it('counts per email, so another account from the same IP is unaffected', async () => {
-    const app = createAuthApp({ now: createClock().now });
+    const app = createAuthApp({ now: createClock().now, rateLimitConfig: { ...config, rateLimitEnabled: true } });
     await signIn(app, 'one@example.test');
     for (let i = 0; i < 5; i += 1) await api(app).login({ email: 'one@example.test', password: 'wrong password' });
 

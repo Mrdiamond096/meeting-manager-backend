@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { config } from '../../config.js';
 import { AppError } from '../../http/errors.js';
-import { rateLimits } from '../../http/rate-limit.js';
+import { createRateLimits, type RateLimitConfig } from '../../http/rate-limit.js';
 import { parseBody } from '../../http/validate.js';
 import type { ModuleDeps } from '../deps.js';
 import { createOtpProvider, type OtpProvider } from './otp-provider.js';
@@ -12,6 +12,7 @@ import type { UserRow } from './repository.js';
 import { clearSessionCookie, readSessionToken, setSessionCookie } from './session.js';
 
 export interface AuthRouterOptions {
+  rateLimitConfig?: RateLimitConfig;
   /** Defaults to a provider built from config (mock in this project). */
   otpProvider?: OtpProvider;
   /** bcrypt cost; defaults to 12 (ADR-009). Tests lower it for speed. Ignored when passwordHasher is given. */
@@ -40,6 +41,7 @@ export function authRouter(deps: ModuleDeps, options: AuthRouterOptions = {}): R
   });
   const cookieSecure = options.cookieSecure ?? config.cookieSecure;
   const router = Router({ mergeParams: true });
+  const rateLimits = createRateLimits(options.rateLimitConfig ?? config);
 
   router.post('/register', rateLimits.register(), async (req, res) => {
     const body = parseBody(registerBody, req);

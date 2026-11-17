@@ -21,6 +21,8 @@ describe('feedback', () => {
     expect(first.body).toEqual({ id: expect.any(String), meetingId: meeting.id, body: 'First note',
       createdById: user.id, createdAt: now().toISOString() });
     expect(second.body.id).not.toBe(first.body.id);
+    const detail = await request(app).get(`/api/v1/meetings/${meeting.id}`);
+    expect(detail.body.feedback).toEqual(expect.arrayContaining([first.body, second.body]));
     const rows = await testDb.feedback.findMany();
     expect(rows.map((row) => row.body)).toEqual(expect.arrayContaining(['First note', '<script>plain text</script>']));
     expect(rows).toHaveLength(2);

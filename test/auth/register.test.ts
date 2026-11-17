@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { config } from '../../src/config.js';
 import { OTP_TTL_MS } from '../../src/modules/auth/service.js';
 import { createUser, resetDb, testDb } from '../helpers/db.js';
@@ -117,17 +117,10 @@ describe('POST /auth/register', () => {
 });
 
 describe('POST /auth/register rate limit', () => {
-  const previous = config.rateLimitEnabled;
-  beforeEach(async () => {
-    await resetDb();
-    config.rateLimitEnabled = true;
-  });
-  afterEach(() => {
-    config.rateLimitEnabled = previous;
-  });
+  beforeEach(resetDb);
 
   it('allows 3 registrations per hour per IP, then 429 RATE_LIMITED', async () => {
-    const app = createAuthApp({ now: createClock().now });
+    const app = createAuthApp({ now: createClock().now, rateLimitConfig: { ...config, rateLimitEnabled: true } });
     for (const n of [1, 2, 3]) {
       expect((await api(app).register({ email: `u${n}@example.test`, password: PASSWORD })).status).toBe(201);
     }

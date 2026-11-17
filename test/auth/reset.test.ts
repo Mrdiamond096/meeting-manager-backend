@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { config } from '../../src/config.js';
 import type { OtpProvider } from '../../src/modules/auth/otp-provider.js';
 import { createPasswordHasher, type PasswordHasher } from '../../src/modules/auth/password.js';
@@ -373,17 +373,10 @@ describe('password reset under concurrency', () => {
 });
 
 describe('POST /auth/password/forgot rate limit', () => {
-  const previous = config.rateLimitEnabled;
-  beforeEach(async () => {
-    await resetDb();
-    config.rateLimitEnabled = true;
-  });
-  afterEach(() => {
-    config.rateLimitEnabled = previous;
-  });
+  beforeEach(resetDb);
 
   it('allows 3 per IP + email per hour, then 429 for that email only', async () => {
-    const app = createAuthApp({ now: createClock().now });
+    const app = createAuthApp({ now: createClock().now, rateLimitConfig: { ...config, rateLimitEnabled: true } });
     await signIn(app, email);
 
     const statuses: number[] = [];
@@ -397,7 +390,7 @@ describe('POST /auth/password/forgot rate limit', () => {
   });
 
   it('applies to unknown emails too, so the limit itself reveals nothing', async () => {
-    const app = createAuthApp({ now: createClock().now });
+    const app = createAuthApp({ now: createClock().now, rateLimitConfig: { ...config, rateLimitEnabled: true } });
     const statuses: number[] = [];
     for (let i = 0; i < 4; i += 1) statuses.push((await api(app).forgot({ email: 'ghost@example.test' })).status);
     expect(statuses).toEqual([202, 202, 202, 429]);

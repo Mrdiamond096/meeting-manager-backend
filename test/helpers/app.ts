@@ -1,7 +1,7 @@
 import { hash } from 'bcryptjs';
 import type { Express } from 'express';
 import request from 'supertest';
-import { createApp } from '../../src/app.js';
+import { createApp, type AppDeps } from '../../src/app.js';
 import { config } from '../../src/config.js';
 import type { AuthUser } from '../../src/http/auth-guard.js';
 import { createAuthenticate } from '../../src/modules/auth/authenticate.js';
@@ -12,6 +12,7 @@ interface TestAppOptions {
   user?: AuthUser;
   now?: () => Date;
   pingDb?: () => Promise<void>;
+  rateLimitConfig?: AppDeps['rateLimitConfig'];
 }
 
 export function createTestApp(options: TestAppOptions = {}): Express {
@@ -20,6 +21,7 @@ export function createTestApp(options: TestAppOptions = {}): Express {
     db: testDb,
     pingDb: options.pingDb ?? (async () => {}),
     now: options.now,
+    rateLimitConfig: options.rateLimitConfig,
     authenticate: user
       ? (req, _res, next) => {
           req.user = user;

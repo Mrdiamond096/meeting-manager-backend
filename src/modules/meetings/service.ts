@@ -1,7 +1,8 @@
 import { AppError } from '../../http/errors.js';
 import { parse } from '../../http/validate.js';
 import type { ModuleDeps } from '../deps.js';
-import { toFeedback, toMeeting } from './mapper.js';
+import { toMeeting } from './mapper.js';
+import { toFeedback } from '../feedback/mapper.js';
 import { meetingRepository } from './repository.js';
 import { meetingState, type CreateMeeting, type ListMeetings, type PatchMeeting } from './schemas.js';
 

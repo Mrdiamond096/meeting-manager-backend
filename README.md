@@ -85,30 +85,33 @@ value) and exits 1. Docker Compose reads `.env.example`.
 
 ## Tests
 
-Vitest + supertest against a real PostgreSQL. The global setup applies migrations to `DATABASE_URL` first.
-**Each run truncates every table**, so tests use their own database, `meeting_test`, never the app's `meeting`.
+Vitest + supertest against a disposable PostgreSQL database. Tests truncate every table, so the application
+connection is never used as a fallback.
 
 ```bash
-make test-docker
+make test          # Node 24 tests; starts isolated PostgreSQL on 127.0.0.1:55432
+make test-docker   # runs the tests in a container against the same isolated database
+make test-down     # stop and discard the test database
 ```
 
-This starts the compose PostgreSQL, creates `meeting_test` if it is missing, and runs the tests in a one-off api
-container with `DATABASE_URL` pointing at it. `-e` overrides `.env.example`, and the container regenerates the Prisma
-client that the `./src` bind mount hides.
+The test stack uses its own Compose project and tmpfs storage, separate from the app's database and volume.
+Set `TEST_DB_PORT` to change its host port. Migrations run only after the test connection is checked.
 
-Local Node, after `make test-docker` has created the database once (or
-`docker compose exec db createdb -U meeting meeting_test`):
+For an existing disposable database, pass `TEST_DATABASE_URL` explicitly:
 
 ```bash
-DATABASE_URL=postgres://meeting:meeting@localhost:5432/meeting_test npm test
+TEST_DATABASE_URL=postgres://meeting:meeting@127.0.0.1:55432/meeting_test npm test
 ```
 
-`make test` without a `DATABASE_URL` falls back to the default, which is the app database, so always set it.
+The URL must use PostgreSQL and name a database ending in `_test`. Missing values, application database names
+and options that redirect the connection target are rejected before connecting or migrating. Setup also checks
+`current_database()` before migrations; the reset helper refuses to truncate if the application connection differs
+from the explicit test target. An inherited `DATABASE_URL` is overridden for test workers and migrations.
+Only point `TEST_DATABASE_URL` at disposable data: the name check cannot prove who else uses that database.
+`npm run test:watch` uses the same guard and requires the same variable.
 
-`npm run typecheck` checks types.
-
-CI (`.github/workflows/ci.yml`) runs `npm ci`, `npm audit --audit-level=high`, typecheck, migrations, tests, the
-build, and then the production Docker image.
+`npm run typecheck` checks types. CI uses an isolated `meeting_test` service and runs dependency audit,
+typecheck, guarded migrations/tests, build and the production Docker image.
 
 ## Production image
 

@@ -6,7 +6,14 @@ import { parseBody } from '../../http/validate.js';
 import type { ModuleDeps } from '../deps.js';
 import { createOtpProvider, type OtpProvider } from './otp-provider.js';
 import { createPasswordHasher, type PasswordHasher } from './password.js';
-import { forgotBody, loginBody, registerBody, resendBody, resetBody, verifyBody } from './schemas.js';
+import {
+  forgotBody,
+  loginBody,
+  registerBody,
+  resendBody,
+  resetBody,
+  verifyBody,
+} from './schemas.js';
 import { createAuthService, type IssuedChallenge } from './service.js';
 import type { UserRow } from './repository.js';
 import { clearSessionCookie, readSessionToken, setSessionCookie } from './session.js';

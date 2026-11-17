@@ -42,7 +42,9 @@ export async function loginAs(options: Omit<TestAppOptions, 'user'> = {}) {
  * Signs in through the real flow (login, OTP, session cookie) instead of stubbing `authenticate`.
  * Use it when a test must prove that the real guard accepts a real session; `loginAs()` stays the fast path.
  */
-export async function loginViaApi(options: Omit<TestAppOptions, 'user'> & { password?: string } = {}) {
+export async function loginViaApi(
+  options: Omit<TestAppOptions, 'user'> & { password?: string } = {},
+) {
   const password = options.password ?? 'correct horse battery';
   // Cost 4 keeps the hash cheap; bcrypt reads the cost from the hash, so the real login path is unchanged.
   const row = await createUser({ passwordHash: await hash(password, 4) });

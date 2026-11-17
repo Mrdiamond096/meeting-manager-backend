@@ -33,7 +33,10 @@ export function createLogCapture() {
       done();
     },
   });
-  const logger = pino({ level: 'trace', redact: { paths: REDACT_PATHS, censor: '[redacted]' } }, stream);
+  const logger = pino(
+    { level: 'trace', redact: { paths: REDACT_PATHS, censor: '[redacted]' } },
+    stream,
+  );
   const text = () => chunks.join('');
   return {
     logger,
@@ -68,30 +71,64 @@ export function createAuthApp({ now, logger, ...router }: AuthAppOptions): Expre
 export type Target = Express;
 
 export const api = (app: Target) => ({
-  register: (body: unknown) => request(app).post(`${BASE}/register`).send(body as object),
-  login: (body: unknown) => request(app).post(`${BASE}/login`).send(body as object),
-  verify: (body: unknown) => request(app).post(`${BASE}/otp/verify`).send(body as object),
-  resend: (body: unknown) => request(app).post(`${BASE}/otp/resend`).send(body as object),
-  forgot: (body: unknown) => request(app).post(`${BASE}/password/forgot`).send(body as object),
-  reset: (body: unknown) => request(app).post(`${BASE}/password/reset`).send(body as object),
-  me: (cookie?: string) => request(app).get(`${BASE}/me`).set('Cookie', cookie ?? ''),
-  logout: (cookie?: string) => request(app).post(`${BASE}/logout`).set('Cookie', cookie ?? ''),
+  register: (body: unknown) =>
+    request(app)
+      .post(`${BASE}/register`)
+      .send(body as object),
+  login: (body: unknown) =>
+    request(app)
+      .post(`${BASE}/login`)
+      .send(body as object),
+  verify: (body: unknown) =>
+    request(app)
+      .post(`${BASE}/otp/verify`)
+      .send(body as object),
+  resend: (body: unknown) =>
+    request(app)
+      .post(`${BASE}/otp/resend`)
+      .send(body as object),
+  forgot: (body: unknown) =>
+    request(app)
+      .post(`${BASE}/password/forgot`)
+      .send(body as object),
+  reset: (body: unknown) =>
+    request(app)
+      .post(`${BASE}/password/reset`)
+      .send(body as object),
+  me: (cookie?: string) =>
+    request(app)
+      .get(`${BASE}/me`)
+      .set('Cookie', cookie ?? ''),
+  logout: (cookie?: string) =>
+    request(app)
+      .post(`${BASE}/logout`)
+      .set('Cookie', cookie ?? ''),
 });
 
 export async function registerUser(app: Target, email = 'new.user@example.test') {
   const res = await api(app).register({ email, password: PASSWORD });
-  return { email, challengeId: res.body.challengeId as string, expiresAt: res.body.expiresAt as string };
+  return {
+    email,
+    challengeId: res.body.challengeId as string,
+    expiresAt: res.body.expiresAt as string,
+  };
 }
 
 /** The `sid` value from a Set-Cookie header. */
 export function sessionToken(res: request.Response): string {
-  const header = (res.headers['set-cookie'] as unknown as string[] | undefined)?.find((c) => c.startsWith('sid='));
+  const header = (res.headers['set-cookie'] as unknown as string[] | undefined)?.find((c) =>
+    c.startsWith('sid='),
+  );
   if (!header) throw new Error('no sid cookie');
   return decodeURIComponent(header.split(';')[0]!.slice('sid='.length));
 }
 
 export function setCookieHeader(res: request.Response): string {
-  return (res.headers['set-cookie'] as unknown as string[] | undefined)?.find((c) => c.startsWith('sid=')) ?? '';
+  return (
+    (res.headers['set-cookie'] as unknown as string[] | undefined)?.find((c) =>
+      c.startsWith('sid='),
+    ) ?? ''
+  );
 }
 
 /** Registers, verifies and returns the `sid=...` cookie header value of the new session. */

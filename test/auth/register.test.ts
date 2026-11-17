@@ -46,7 +46,10 @@ describe('POST /auth/register', () => {
   });
 
   it('normalizes the email (trim + lowercase)', async () => {
-    const res = await api(app).register({ email: '  Mixed.Case@Example.TEST ', password: PASSWORD });
+    const res = await api(app).register({
+      email: '  Mixed.Case@Example.TEST ',
+      password: PASSWORD,
+    });
     expect(res.status).toBe(201);
     const [user] = await testDb.user.findMany();
     expect(user!.email).toBe('mixed.case@example.test');
@@ -55,10 +58,22 @@ describe('POST /auth/register', () => {
   it.each([
     ['missing email', { password: PASSWORD }, 'body.email'],
     ['not an email', { email: 'nope', password: PASSWORD }, 'body.email'],
-    ['email over 254 chars', { email: `${'a'.repeat(250)}@example.test`, password: PASSWORD }, 'body.email'],
+    [
+      'email over 254 chars',
+      { email: `${'a'.repeat(250)}@example.test`, password: PASSWORD },
+      'body.email',
+    ],
     ['password under 8 chars', { email: 'a@example.test', password: 'short' }, 'body.password'],
-    ['password over 72 bytes', { email: 'a@example.test', password: 'x'.repeat(73) }, 'body.password'],
-    ['multi-byte password over 72 bytes', { email: 'a@example.test', password: 'ก'.repeat(25) }, 'body.password'],
+    [
+      'password over 72 bytes',
+      { email: 'a@example.test', password: 'x'.repeat(73) },
+      'body.password',
+    ],
+    [
+      'multi-byte password over 72 bytes',
+      { email: 'a@example.test', password: 'ก'.repeat(25) },
+      'body.password',
+    ],
     ['password not a string', { email: 'a@example.test', password: 12345678 }, 'body.password'],
     ['unknown key', { email: 'a@example.test', password: PASSWORD, role: 'ADMIN' }, 'body'],
   ])('rejects %s with 400 VALIDATION_ERROR', async (_name, body, path) => {
@@ -70,12 +85,19 @@ describe('POST /auth/register', () => {
   });
 
   it('accepts a password of exactly 72 bytes and exactly 8 characters', async () => {
-    expect((await api(app).register({ email: 'a@example.test', password: 'x'.repeat(72) })).status).toBe(201);
-    expect((await api(app).register({ email: 'b@example.test', password: 'x'.repeat(8) })).status).toBe(201);
+    expect(
+      (await api(app).register({ email: 'a@example.test', password: 'x'.repeat(72) })).status,
+    ).toBe(201);
+    expect(
+      (await api(app).register({ email: 'b@example.test', password: 'x'.repeat(8) })).status,
+    ).toBe(201);
   });
 
   it('answers 409 EMAIL_TAKEN for a verified account, ignoring case, and leaves it untouched', async () => {
-    const existing = await createUser({ email: 'taken@example.test', passwordHash: 'original-hash' });
+    const existing = await createUser({
+      email: 'taken@example.test',
+      passwordHash: 'original-hash',
+    });
 
     const res = await api(app).register({ email: 'TAKEN@example.test', password: PASSWORD });
 
@@ -90,7 +112,10 @@ describe('POST /auth/register', () => {
     const first = await registerUser(app, 'again@example.test');
     const [before] = await testDb.user.findMany();
 
-    const res = await api(app).register({ email: 'again@example.test', password: 'a different password' });
+    const res = await api(app).register({
+      email: 'again@example.test',
+      password: 'a different password',
+    });
 
     expect(res.status).toBe(201);
     expect(res.body.challengeId).not.toBe(first.challengeId);
@@ -120,9 +145,14 @@ describe('POST /auth/register rate limit', () => {
   beforeEach(resetDb);
 
   it('allows 3 registrations per hour per IP, then 429 RATE_LIMITED', async () => {
-    const app = createAuthApp({ now: createClock().now, rateLimitConfig: { ...config, rateLimitEnabled: true } });
+    const app = createAuthApp({
+      now: createClock().now,
+      rateLimitConfig: { ...config, rateLimitEnabled: true },
+    });
     for (const n of [1, 2, 3]) {
-      expect((await api(app).register({ email: `u${n}@example.test`, password: PASSWORD })).status).toBe(201);
+      expect(
+        (await api(app).register({ email: `u${n}@example.test`, password: PASSWORD })).status,
+      ).toBe(201);
     }
     const blocked = await api(app).register({ email: 'u4@example.test', password: PASSWORD });
     expect(blocked.status).toBe(429);

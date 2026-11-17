@@ -9,7 +9,12 @@ process.env.DATABASE_URL = databaseUrl;
 export default defineConfig({
   resolve: {
     // Long-lived test servers instead of one throwaway server per request (see the helper).
-    alias: [{ find: /^supertest$/, replacement: fileURLToPath(new URL('test/helpers/supertest.ts', import.meta.url)) }],
+    alias: [
+      {
+        find: /^supertest$/,
+        replacement: fileURLToPath(new URL('test/helpers/supertest.ts', import.meta.url)),
+      },
+    ],
   },
   test: {
     environment: 'node',

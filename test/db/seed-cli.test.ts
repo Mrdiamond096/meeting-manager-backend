@@ -21,7 +21,12 @@ function seedCli(env: Record<string, string>) {
     timeout: 60_000,
   });
   const lines = run.stdout.trim().split('\n').filter(Boolean);
-  return { status: run.status, stdout: run.stdout, stderr: run.stderr, json: lines.map((l) => JSON.parse(l) as Record<string, unknown>) };
+  return {
+    status: run.status,
+    stdout: run.stdout,
+    stderr: run.stderr,
+    json: lines.map((l) => JSON.parse(l) as Record<string, unknown>),
+  };
 }
 
 const counts = async () => ({
@@ -50,12 +55,20 @@ describe('db:seed entry point', () => {
 
     expect(run.status).toBe(1);
     expect(run.json).toHaveLength(1);
-    expect(run.json[0]).toMatchObject({ level: 50, service: 'seed', msg: expect.stringContaining('ALLOW_DEMO_SEED=true') });
+    expect(run.json[0]).toMatchObject({
+      level: 50,
+      service: 'seed',
+      msg: expect.stringContaining('ALLOW_DEMO_SEED=true'),
+    });
     expect(await counts()).toEqual({ users: 0, candidates: 0, meetings: 0, feedback: 0 });
   });
 
   it('treats ALLOW_DEMO_SEED=false as not allowed', async () => {
-    const run = seedCli({ NODE_ENV: 'production', ALLOW_MOCK_OTP: 'true', ALLOW_DEMO_SEED: 'false' });
+    const run = seedCli({
+      NODE_ENV: 'production',
+      ALLOW_MOCK_OTP: 'true',
+      ALLOW_DEMO_SEED: 'false',
+    });
 
     expect(run.status).toBe(1);
     expect(run.json[0]).toMatchObject({ msg: expect.stringContaining('ALLOW_DEMO_SEED=true') });
@@ -75,9 +88,18 @@ describe('db:seed entry point', () => {
     const first = seedCli(env);
     expect(first.status).toBe(0);
     expect(first.json).toHaveLength(1);
-    expect(first.json[0]).toMatchObject({ level: 30, service: 'seed', candidates: 8, meetings: 14, feedback: 4 });
+    expect(first.json[0]).toMatchObject({
+      level: 30,
+      service: 'seed',
+      candidates: 8,
+      meetings: 14,
+      feedback: 4,
+    });
     const afterFirst = await counts();
-    const titles = async () => (await testDb.meeting.findMany({ select: { title: true }, orderBy: { title: 'asc' } })).map((m) => m.title);
+    const titles = async () =>
+      (await testDb.meeting.findMany({ select: { title: true }, orderBy: { title: 'asc' } })).map(
+        (m) => m.title,
+      );
     const titlesAfterFirst = await titles();
 
     const second = seedCli(env);
@@ -97,6 +119,9 @@ describe('db:seed entry point', () => {
     const run = seedCli({ NODE_ENV: 'development', SEED_DEMO_PASSWORD: 'short' });
     expect(run.status).toBe(1);
     expect(run.json).toHaveLength(1);
-    expect(run.json[0]).toMatchObject({ level: 50, msg: expect.stringContaining('SEED_DEMO_PASSWORD') });
+    expect(run.json[0]).toMatchObject({
+      level: 50,
+      msg: expect.stringContaining('SEED_DEMO_PASSWORD'),
+    });
   });
 });

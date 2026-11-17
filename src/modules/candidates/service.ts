@@ -17,9 +17,11 @@ export function candidateService(deps: ModuleDeps) {
       const now = deps.now();
       const upcoming = await repo.upcoming(id, now);
       const history = await repo.history(id, now);
-      return { candidate: toCandidate(candidate),
+      return {
+        candidate: toCandidate(candidate),
         upcoming: upcoming.map((meeting) => toMeeting({ meeting, candidate }, userId)),
-        history: history.map((meeting) => toMeeting({ meeting, candidate }, userId)) };
+        history: history.map((meeting) => toMeeting({ meeting, candidate }, userId)),
+      };
     },
   };
 }

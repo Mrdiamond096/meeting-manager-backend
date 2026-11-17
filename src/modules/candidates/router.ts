@@ -8,7 +8,9 @@ import { candidateService } from './service.js';
 export function candidatesRouter(deps: ModuleDeps): Router {
   const router = Router({ mergeParams: true });
   const service = candidateService(deps);
-  router.get('/', async (req, res) => res.json(await service.search(parseQuery(searchQuery, req).q)));
+  router.get('/', async (req, res) =>
+    res.json(await service.search(parseQuery(searchQuery, req).q)),
+  );
   router.get('/positions', (req, res) => {
     parseQuery(emptyQuery, req);
     res.json({ items: CANDIDATE_POSITIONS });

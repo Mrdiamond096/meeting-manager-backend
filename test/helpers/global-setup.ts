@@ -11,7 +11,9 @@ export async function setup() {
     const result = await client.query<{ name: string }>('select current_database() as name');
     if (result.rows[0]?.name !== expectedName) throw new Error('Unexpected database');
   } catch {
-    throw new Error('Cannot verify the test database. Check TEST_DATABASE_URL or run make test-db. No migrations were started.');
+    throw new Error(
+      'Cannot verify the test database. Check TEST_DATABASE_URL or run make test-db. No migrations were started.',
+    );
   } finally {
     await client.end();
   }
@@ -21,6 +23,8 @@ export async function setup() {
       env: { ...process.env, DATABASE_URL: databaseUrl },
     });
   } catch {
-    throw new Error('Test database migrations failed. Check the test database and migration files.');
+    throw new Error(
+      'Test database migrations failed. Check the test database and migration files.',
+    );
   }
 }

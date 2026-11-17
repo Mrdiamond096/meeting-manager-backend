@@ -11,15 +11,17 @@ const LATER = new Date(NOW.getTime() + 5 * 60_000);
 async function openChallenge(overrides: Partial<Prisma.OtpChallengeUncheckedCreateInput> = {}) {
   const user = await createUser();
   const id = randomUUID();
-  await testDb.otpChallenge.create({ data: {
-    id,
-    userId: user.id,
-    purpose: 'REGISTER',
-    codeHash: hashOtpCode(id, '112233'),
-    expiresAt: LATER,
-    createdAt: NOW,
-    ...overrides,
-  } });
+  await testDb.otpChallenge.create({
+    data: {
+      id,
+      userId: user.id,
+      purpose: 'REGISTER',
+      codeHash: hashOtpCode(id, '112233'),
+      expiresAt: LATER,
+      createdAt: NOW,
+      ...overrides,
+    },
+  });
   return id;
 }
 
@@ -30,7 +32,9 @@ describe('otp challenge repository (atomic guarantees)', () => {
   it('consumes a challenge for exactly one of many concurrent callers', async () => {
     const id = await openChallenge();
 
-    const results = await Promise.all(Array.from({ length: 8 }, () => repo.consumeChallenge(testDb, id, NOW)));
+    const results = await Promise.all(
+      Array.from({ length: 8 }, () => repo.consumeChallenge(testDb, id, NOW)),
+    );
 
     expect(results.filter(Boolean)).toHaveLength(1);
   });
@@ -48,7 +52,9 @@ describe('otp challenge repository (atomic guarantees)', () => {
   it('counts at most 5 wrong attempts however many arrive at once', async () => {
     const id = await openChallenge();
 
-    const results = await Promise.all(Array.from({ length: 12 }, () => repo.recordFailedAttempt(testDb, id, NOW)));
+    const results = await Promise.all(
+      Array.from({ length: 12 }, () => repo.recordFailedAttempt(testDb, id, NOW)),
+    );
 
     const counted = results.filter((n): n is number => n !== undefined).sort();
     expect(counted).toEqual([1, 2, 3, 4, 5]);

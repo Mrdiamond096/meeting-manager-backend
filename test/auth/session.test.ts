@@ -10,7 +10,14 @@ import {
   hashSessionToken,
 } from '../../src/modules/auth/session.js';
 import { resetDb, testDb } from '../helpers/db.js';
-import { api, createAuthApp, createClock, createLogCapture, setCookieHeader, signIn } from './helpers.js';
+import {
+  api,
+  createAuthApp,
+  createClock,
+  createLogCapture,
+  setCookieHeader,
+  signIn,
+} from './helpers.js';
 
 const HOUR = 60 * 60 * 1000;
 
@@ -55,7 +62,10 @@ describe('session authentication and GET /auth/me', () => {
 
   it('keeps two sessions of the same user independent', async () => {
     const first = await signIn(app, 'twice@example.test');
-    const login = await api(app).login({ email: 'twice@example.test', password: 'correct horse battery' });
+    const login = await api(app).login({
+      email: 'twice@example.test',
+      password: 'correct horse battery',
+    });
     const verified = await api(app).verify({ challengeId: login.body.challengeId, code: '112233' });
     const secondCookie = setCookieHeader(verified).split(';')[0]!;
 
@@ -124,7 +134,10 @@ describe('session authentication and GET /auth/me', () => {
                 const row = await sessions.findUnique(args);
                 if (!refreshed) {
                   refreshed = true;
-                  await sessions.updateMany({ where: { userId }, data: { lastSeenAt: timed.now() } });
+                  await sessions.updateMany({
+                    where: { userId },
+                    data: { lastSeenAt: timed.now() },
+                  });
                 }
                 return row;
               };

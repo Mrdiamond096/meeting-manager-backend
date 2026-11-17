@@ -40,7 +40,9 @@ describe('OTP code hash', () => {
 
 describe('session token hash', () => {
   it('is a deterministic SHA-256 hex digest', () => {
-    expect(hashSessionToken('abc')).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+    expect(hashSessionToken('abc')).toBe(
+      'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+    );
   });
 });
 

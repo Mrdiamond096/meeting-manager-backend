@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock('node:child_process', () => ({ execFileSync: mocks.migrate }));
 vi.mock('pg', () => ({
   Client: class {
-    constructor(options: unknown) { mocks.createClient(options); }
+    constructor(options: unknown) {
+      mocks.createClient(options);
+    }
     connect = mocks.connect;
     query = mocks.query;
     end = mocks.end;
@@ -27,12 +29,15 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe('database setup guard', () => {
-  it.each([undefined, 'postgres://user:secret@localhost/meeting'])('refuses %s before connecting or migrating', async (url) => {
-    vi.stubEnv('TEST_DATABASE_URL', url);
-    await expect(setup()).rejects.toThrow(/TEST_DATABASE_URL/);
-    expect(mocks.createClient).not.toHaveBeenCalled();
-    expect(mocks.migrate).not.toHaveBeenCalled();
-  });
+  it.each([undefined, 'postgres://user:secret@localhost/meeting'])(
+    'refuses %s before connecting or migrating',
+    async (url) => {
+      vi.stubEnv('TEST_DATABASE_URL', url);
+      await expect(setup()).rejects.toThrow(/TEST_DATABASE_URL/);
+      expect(mocks.createClient).not.toHaveBeenCalled();
+      expect(mocks.migrate).not.toHaveBeenCalled();
+    },
+  );
 
   it('refuses an unexpected server database before migrations', async () => {
     vi.stubEnv('TEST_DATABASE_URL', 'postgres://localhost/meeting_test');
@@ -55,10 +60,14 @@ describe('database setup guard', () => {
     vi.stubEnv('TEST_DATABASE_URL', target);
     vi.stubEnv('DATABASE_URL', 'postgres://localhost/meeting');
     await setup();
-    expect(mocks.createClient).toHaveBeenCalledWith({ connectionString: target, connectionTimeoutMillis: 5000 });
+    expect(mocks.createClient).toHaveBeenCalledWith({
+      connectionString: target,
+      connectionTimeoutMillis: 5000,
+    });
     expect(mocks.query).toHaveBeenCalledWith('select current_database() as name');
     expect(mocks.migrate).toHaveBeenCalledWith('npx', ['prisma', 'migrate', 'deploy'], {
-      stdio: 'pipe', env: expect.objectContaining({ DATABASE_URL: target }),
+      stdio: 'pipe',
+      env: expect.objectContaining({ DATABASE_URL: target }),
     });
   });
 });

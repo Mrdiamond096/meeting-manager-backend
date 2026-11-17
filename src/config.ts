@@ -1,9 +1,7 @@
 import { pino } from 'pino';
 import { z } from 'zod';
 
-const bool = z
-  .enum(['true', 'false'])
-  .transform((v) => v === 'true');
+const bool = z.enum(['true', 'false']).transform((v) => v === 'true');
 
 /**
  * A rate limit as `max/minutes`, e.g. `3/60` = 3 requests per 60 minutes. Bounded: at most 999999 requests per
@@ -41,13 +39,21 @@ const envSchema = z.object({
   ALLOWED_ORIGINS: z
     .string()
     .default('http://localhost:8080,http://localhost:3001')
-    .transform((v) => v.split(',').map((o) => o.trim()).filter(Boolean)),
+    .transform((v) =>
+      v
+        .split(',')
+        .map((o) => o.trim())
+        .filter(Boolean),
+    ),
   OTP_PROVIDER: z.enum(['mock']).default('mock'),
   /** Explicit opt-in for the local Docker demo, which runs the production image. */
   ALLOW_MOCK_OTP: bool.prefault('false'),
   /** Opt-in for a one-off demo seed command. Never enable it on the running server. */
   ALLOW_DEMO_SEED: bool.prefault('false'),
-  OTP_MOCK_CODE: z.string().regex(/^\d{6}$/).default('112233'),
+  OTP_MOCK_CODE: z
+    .string()
+    .regex(/^\d{6}$/)
+    .default('112233'),
 });
 
 export type Config = ReturnType<typeof loadConfig>;
@@ -96,7 +102,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     cookieSecure: e.COOKIE_SECURE,
     allowedOrigins: e.ALLOWED_ORIGINS,
     allowDemoSeed: e.ALLOW_DEMO_SEED,
-    otp: { provider: e.OTP_PROVIDER, mockCode: e.OTP_MOCK_CODE, allowMockInProduction: e.ALLOW_MOCK_OTP },
+    otp: {
+      provider: e.OTP_PROVIDER,
+      mockCode: e.OTP_MOCK_CODE,
+      allowMockInProduction: e.ALLOW_MOCK_OTP,
+    },
   };
 }
 

@@ -3,7 +3,16 @@ import { config } from '../../src/config.js';
 import { createPasswordHasher } from '../../src/modules/auth/password.js';
 import { OTP_TTL_MS } from '../../src/modules/auth/service.js';
 import { resetDb, testDb } from '../helpers/db.js';
-import { api, createAuthApp, createClock, OTP, PASSWORD, registerUser, setCookieHeader, signIn } from './helpers.js';
+import {
+  api,
+  createAuthApp,
+  createClock,
+  OTP,
+  PASSWORD,
+  registerUser,
+  setCookieHeader,
+  signIn,
+} from './helpers.js';
 
 describe('POST /auth/login', () => {
   const clock = createClock();
@@ -26,7 +35,12 @@ describe('POST /auth/login', () => {
     expect(setCookieHeader(res)).toBe('');
     expect(await testDb.session.findMany()).toHaveLength(0);
     const [challenge] = await testDb.otpChallenge.findMany();
-    expect(challenge).toMatchObject({ id: res.body.challengeId, purpose: 'LOGIN', attempts: 0, consumedAt: null });
+    expect(challenge).toMatchObject({
+      id: res.body.challengeId,
+      purpose: 'LOGIN',
+      attempts: 0,
+      consumedAt: null,
+    });
   });
 
   it('signs in only after the OTP is verified, and the session works', async () => {
@@ -71,21 +85,24 @@ describe('POST /auth/login', () => {
     it.each([
       ['ASCII', 'x'.repeat(72), 'x'.repeat(72) + 'y'],
       ['multi-byte', 'ก'.repeat(24), 'ก'.repeat(24) + 'a'],
-    ])('answers 401 for a %s password that only matches its first 72 bytes', async (_name, exact, longer) => {
-      const who = 'limit@example.test';
-      const { challengeId } = (await api(app).register({ email: who, password: exact })).body;
-      await api(app).verify({ challengeId, code: OTP });
-      await testDb.otpChallenge.deleteMany();
+    ])(
+      'answers 401 for a %s password that only matches its first 72 bytes',
+      async (_name, exact, longer) => {
+        const who = 'limit@example.test';
+        const { challengeId } = (await api(app).register({ email: who, password: exact })).body;
+        await api(app).verify({ challengeId, code: OTP });
+        await testDb.otpChallenge.deleteMany();
 
-      const ok = await api(app).login({ email: who, password: exact });
-      expect(ok.status).toBe(200);
-      await testDb.otpChallenge.deleteMany();
+        const ok = await api(app).login({ email: who, password: exact });
+        expect(ok.status).toBe(200);
+        await testDb.otpChallenge.deleteMany();
 
-      const res = await api(app).login({ email: who, password: longer });
-      expect(res.status).toBe(401);
-      expect(res.body.error.code).toBe('INVALID_CREDENTIALS');
-      expect(await testDb.otpChallenge.findMany()).toHaveLength(0);
-    });
+        const res = await api(app).login({ email: who, password: longer });
+        expect(res.status).toBe(401);
+        expect(res.body.error.code).toBe('INVALID_CREDENTIALS');
+        expect(await testDb.otpChallenge.findMany()).toHaveLength(0);
+      },
+    );
 
     it('still spends one bcrypt comparison on an over-long password', async () => {
       const real = createPasswordHasher(4);
@@ -122,7 +139,9 @@ describe('POST /auth/login', () => {
     const old = await api(app).verify({ challengeId: first.body.challengeId, code: OTP });
     expect(old.status).toBe(400);
     expect(old.body.error.code).toBe('OTP_INVALID');
-    expect((await api(app).verify({ challengeId: second.body.challengeId, code: OTP })).status).toBe(200);
+    expect(
+      (await api(app).verify({ challengeId: second.body.challengeId, code: OTP })).status,
+    ).toBe(200);
   });
 
   it('lets an unverified account log in; the OTP then proves the email', async () => {
@@ -160,12 +179,16 @@ describe('POST /auth/login rate limit', () => {
   beforeEach(resetDb);
 
   it('allows 5 attempts per IP + email per 15 minutes, then 429 even with the right password', async () => {
-    const app = createAuthApp({ now: createClock().now, rateLimitConfig: { ...config, rateLimitEnabled: true } });
+    const app = createAuthApp({
+      now: createClock().now,
+      rateLimitConfig: { ...config, rateLimitEnabled: true },
+    });
     const email = 'limited@example.test';
     await signIn(app, email);
 
     const statuses: number[] = [];
-    for (let i = 0; i < 5; i += 1) statuses.push((await api(app).login({ email, password: 'wrong password' })).status);
+    for (let i = 0; i < 5; i += 1)
+      statuses.push((await api(app).login({ email, password: 'wrong password' })).status);
     expect(statuses).toEqual([401, 401, 401, 401, 401]);
 
     const blocked = await api(app).login({ email, password: PASSWORD });
@@ -174,9 +197,13 @@ describe('POST /auth/login rate limit', () => {
   });
 
   it('counts per email, so another account from the same IP is unaffected', async () => {
-    const app = createAuthApp({ now: createClock().now, rateLimitConfig: { ...config, rateLimitEnabled: true } });
+    const app = createAuthApp({
+      now: createClock().now,
+      rateLimitConfig: { ...config, rateLimitEnabled: true },
+    });
     await signIn(app, 'one@example.test');
-    for (let i = 0; i < 5; i += 1) await api(app).login({ email: 'one@example.test', password: 'wrong password' });
+    for (let i = 0; i < 5; i += 1)
+      await api(app).login({ email: 'one@example.test', password: 'wrong password' });
 
     const other = await api(app).login({ email: 'two@example.test', password: 'wrong password' });
     expect(other.status).toBe(401);

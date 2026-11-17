@@ -44,7 +44,9 @@ export interface SignedIn {
 
 /** OTP_INVALID carries the remaining attempts so the UI can show them (contract §3). */
 function otpInvalid(attemptsRemaining: number): AppError {
-  return new AppError('OTP_INVALID', undefined, [{ path: 'attemptsRemaining', message: String(attemptsRemaining) }]);
+  return new AppError('OTP_INVALID', undefined, [
+    { path: 'attemptsRemaining', message: String(attemptsRemaining) },
+  ]);
 }
 
 export function createAuthService({ db, now, otp, hasher }: AuthServiceDeps) {
@@ -77,10 +79,17 @@ export function createAuthService({ db, now, otp, hasher }: AuthServiceDeps) {
       const passwordHash = await hasher.hash(input.password);
 
       const { issued, userId } = await db.$transaction(async (tx) => {
-        const user = await repo.upsertUnverifiedUser(tx, { email: input.email, passwordHash, now: at });
+        const user = await repo.upsertUnverifiedUser(tx, {
+          email: input.email,
+          passwordHash,
+          now: at,
+        });
         if (!user) throw new AppError('EMAIL_TAKEN');
         await repo.invalidateOpenChallenges(tx, user.id, 'REGISTER', at);
-        return { issued: await issueChallenge(tx, { userId: user.id, purpose: 'REGISTER' }, at), userId: user.id };
+        return {
+          issued: await issueChallenge(tx, { userId: user.id, purpose: 'REGISTER' }, at),
+          userId: user.id,
+        };
       });
 
       await otp.deliver({ userId, purpose: 'REGISTER' }, issued.code);
@@ -99,7 +108,8 @@ export function createAuthService({ db, now, otp, hasher }: AuthServiceDeps) {
         await hasher.verifyAgainstDummy(input.password);
         throw new AppError('INVALID_CREDENTIALS');
       }
-      if (!(await hasher.verify(input.password, user.passwordHash))) throw new AppError('INVALID_CREDENTIALS');
+      if (!(await hasher.verify(input.password, user.passwordHash)))
+        throw new AppError('INVALID_CREDENTIALS');
 
       const at = now();
       const issued = await db.$transaction(async (tx) => {
@@ -107,7 +117,8 @@ export function createAuthService({ db, now, otp, hasher }: AuthServiceDeps) {
         // The password was checked before the lock. If a reset (or a re-registration) replaced it in between,
         // that check no longer counts: the old password must not open a new login after the change.
         const current = await repo.findUserById(tx, user.id);
-        if (!current || current.passwordHash !== user.passwordHash) throw new AppError('INVALID_CREDENTIALS');
+        if (!current || current.passwordHash !== user.passwordHash)
+          throw new AppError('INVALID_CREDENTIALS');
         await repo.invalidateOpenChallenges(tx, user.id, 'LOGIN', at);
         return issueChallenge(tx, { userId: user.id, purpose: 'LOGIN' }, at);
       });
@@ -122,14 +133,22 @@ export function createAuthService({ db, now, otp, hasher }: AuthServiceDeps) {
      */
     async forgotPassword(log: Logger, input: { email: string }): Promise<IssuedChallenge> {
       const at = now();
-      const fake = (): IssuedChallenge => ({ challengeId: randomUUID(), expiresAt: new Date(at.getTime() + OTP_TTL_MS) });
+      const fake = (): IssuedChallenge => ({
+        challengeId: randomUUID(),
+        expiresAt: new Date(at.getTime() + OTP_TTL_MS),
+      });
 
       const user = await repo.findUserByEmail(db, input.email);
       if (!user) return fake();
 
       const issued = await db.$transaction(async (tx) => {
         await repo.lockUser(tx, user.id); // lock order: user, then challenge (see repo.lockUser)
-        const recent = await repo.countChallengesSince(tx, user.id, 'RESET', new Date(at.getTime() - RESET_WINDOW_MS));
+        const recent = await repo.countChallengesSince(
+          tx,
+          user.id,
+          'RESET',
+          new Date(at.getTime() - RESET_WINDOW_MS),
+        );
         if (recent >= MAX_RESETS_PER_WINDOW) return undefined;
         await repo.invalidateOpenChallenges(tx, user.id, 'RESET', at);
         return issueChallenge(tx, { userId: user.id, purpose: 'RESET' }, at);
@@ -148,7 +167,10 @@ export function createAuthService({ db, now, otp, hasher }: AuthServiceDeps) {
      * Every failure is a plain OTP_INVALID without attemptsRemaining. A counter would tell a real challenge
      * from the fake one forgotPassword hands out for unknown emails.
      */
-    async resetPassword(log: Logger, input: { challengeId: string; code: string; newPassword: string }): Promise<void> {
+    async resetPassword(
+      log: Logger,
+      input: { challengeId: string; code: string; newPassword: string },
+    ): Promise<void> {
       const at = now();
       const invalid = () => new AppError('OTP_INVALID');
       const challenge = await repo.findChallenge(db, input.challengeId);

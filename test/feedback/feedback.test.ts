@@ -15,36 +15,62 @@ describe('feedback', () => {
     const { app, user } = await loginAs({ now });
     const meeting = await seed();
     const first = await request(app).post(url(meeting.id)).send({ body: ' First note ' });
-    const second = await request(app).post(url(meeting.id)).send({ body: '<script>plain text</script>' });
+    const second = await request(app)
+      .post(url(meeting.id))
+      .send({ body: '<script>plain text</script>' });
     expect(first.status).toBe(201);
     expect(second.status).toBe(201);
-    expect(first.body).toEqual({ id: expect.any(String), meetingId: meeting.id, body: 'First note',
-      createdById: user.id, createdAt: now().toISOString() });
+    expect(first.body).toEqual({
+      id: expect.any(String),
+      meetingId: meeting.id,
+      body: 'First note',
+      createdById: user.id,
+      createdAt: now().toISOString(),
+    });
     expect(second.body.id).not.toBe(first.body.id);
     const detail = await request(app).get(`/api/v1/meetings/${meeting.id}`);
     expect(detail.body.feedback).toEqual(expect.arrayContaining([first.body, second.body]));
     const rows = await testDb.feedback.findMany();
-    expect(rows.map((row) => row.body)).toEqual(expect.arrayContaining(['First note', '<script>plain text</script>']));
+    expect(rows.map((row) => row.body)).toEqual(
+      expect.arrayContaining(['First note', '<script>plain text</script>']),
+    );
     expect(rows).toHaveLength(2);
     const unchanged = await testDb.meeting.findUniqueOrThrow({ where: { id: meeting.id } });
     expect(unchanged?.version).toBe(1);
   });
 
-  it.each([{}, { body: '' }, { body: '   ' }, { body: 'x'.repeat(5001) }, { body: null }, { body: 123 },
-    { body: 'Note', createdById: randomUUID() }, { body: 'Note', meetingId: randomUUID() }, { body: 'Note', extra: true }])
-  ('rejects invalid body or client-owned attribution: %j', async (body) => {
+  it.each([
+    {},
+    { body: '' },
+    { body: '   ' },
+    { body: 'x'.repeat(5001) },
+    { body: null },
+    { body: 123 },
+    { body: 'Note', createdById: randomUUID() },
+    { body: 'Note', meetingId: randomUUID() },
+    { body: 'Note', extra: true },
+  ])('rejects invalid body or client-owned attribution: %j', async (body) => {
     const { app } = await loginAs();
     const meeting = await seed();
     const res = await request(app).post(url(meeting.id)).send(body);
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatchObject({ code: 'VALIDATION_ERROR', requestId: expect.any(String) });
+    expect(res.body.error).toMatchObject({
+      code: 'VALIDATION_ERROR',
+      requestId: expect.any(String),
+    });
     expect(await testDb.feedback.findMany()).toEqual([]);
   });
 
   it('accepts the exact 5000-character boundary', async () => {
     const { app } = await loginAs();
     const meeting = await seed();
-    expect((await request(app).post(url(meeting.id)).send({ body: 'x'.repeat(5000) })).status).toBe(201);
+    expect(
+      (
+        await request(app)
+          .post(url(meeting.id))
+          .send({ body: 'x'.repeat(5000) })
+      ).status,
+    ).toBe(201);
   });
 
   it('separates malformed id, missing meeting and unexpected query errors', async () => {
@@ -54,15 +80,25 @@ describe('feedback', () => {
     expect(missing.body.error.code).toBe('NOT_FOUND');
     expect((await request(app).post(url('bad-id')).send({ body: 'Note' })).status).toBe(400);
     const meeting = await seed();
-    expect((await request(app).post(`${url(meeting.id)}?extra=1`).send({ body: 'Note' })).status).toBe(400);
+    expect(
+      (
+        await request(app)
+          .post(`${url(meeting.id)}?extra=1`)
+          .send({ body: 'Note' })
+      ).status,
+    ).toBe(400);
     expect(await testDb.feedback.findMany()).toEqual([]);
   });
 
   it('requires a session, but permits any authenticated team member', async () => {
     const first = await loginAs();
     const second = await loginAs();
-    const meeting = await testDb.meeting.create({ data: { title: 'Owned by first', dueDate: now(), createdBy: first.user.id } });
-    expect((await request(createTestApp()).post(url(meeting!.id)).send({ body: 'Anonymous' })).status).toBe(401);
+    const meeting = await testDb.meeting.create({
+      data: { title: 'Owned by first', dueDate: now(), createdBy: first.user.id },
+    });
+    expect(
+      (await request(createTestApp()).post(url(meeting!.id)).send({ body: 'Anonymous' })).status,
+    ).toBe(401);
     const res = await request(second.app).post(url(meeting!.id)).send({ body: 'Team note' });
     expect(res.status).toBe(201);
     expect(res.body.createdById).toBe(second.user.id);

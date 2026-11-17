@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { config } from '../../src/config.js';
 import type { OtpProvider } from '../../src/modules/auth/otp-provider.js';
 import { createPasswordHasher, type PasswordHasher } from '../../src/modules/auth/password.js';
-import { MAX_RESETS_PER_WINDOW, OTP_TTL_MS, RESET_WINDOW_MS } from '../../src/modules/auth/service.js';
+import {
+  MAX_RESETS_PER_WINDOW,
+  OTP_TTL_MS,
+  RESET_WINDOW_MS,
+} from '../../src/modules/auth/service.js';
 import { resetDb, testDb } from '../helpers/db.js';
 import {
   api,
@@ -77,9 +81,17 @@ describe('POST /auth/password/forgot', () => {
     const first = await api(app).forgot({ email });
     const second = await api(app).forgot({ email });
 
-    const old = await api(app).reset({ challengeId: first.body.challengeId, code: OTP, newPassword: NEW_PASSWORD });
+    const old = await api(app).reset({
+      challengeId: first.body.challengeId,
+      code: OTP,
+      newPassword: NEW_PASSWORD,
+    });
     expect(old.status).toBe(400);
-    const fresh = await api(app).reset({ challengeId: second.body.challengeId, code: OTP, newPassword: NEW_PASSWORD });
+    const fresh = await api(app).reset({
+      challengeId: second.body.challengeId,
+      code: OTP,
+      newPassword: NEW_PASSWORD,
+    });
     expect(fresh.status).toBe(204);
   });
 
@@ -93,8 +105,18 @@ describe('POST /auth/password/forgot', () => {
     expect(over.status).toBe(202);
     expect(over.body.challengeId).toEqual(expect.any(String));
     expect(deliver).toHaveBeenCalledTimes(MAX_RESETS_PER_WINDOW);
-    expect(await testDb.otpChallenge.count({ where: { purpose: 'RESET' } })).toBe(MAX_RESETS_PER_WINDOW);
-    expect((await api(app).reset({ challengeId: over.body.challengeId, code: OTP, newPassword: NEW_PASSWORD })).status).toBe(400);
+    expect(await testDb.otpChallenge.count({ where: { purpose: 'RESET' } })).toBe(
+      MAX_RESETS_PER_WINDOW,
+    );
+    expect(
+      (
+        await api(app).reset({
+          challengeId: over.body.challengeId,
+          code: OTP,
+          newPassword: NEW_PASSWORD,
+        })
+      ).status,
+    ).toBe(400);
 
     clock.advance(RESET_WINDOW_MS + 1);
     expect((await api(app).forgot({ email })).status).toBe(202);
@@ -148,7 +170,11 @@ describe('POST /auth/password/reset', () => {
 
   it('does not sign anyone in: a session only comes from login', async () => {
     await signIn(app, email);
-    const res = await api(app).reset({ challengeId: await startReset(), code: OTP, newPassword: NEW_PASSWORD });
+    const res = await api(app).reset({
+      challengeId: await startReset(),
+      code: OTP,
+      newPassword: NEW_PASSWORD,
+    });
     expect(res.headers['set-cookie']).toBeUndefined();
   });
 
@@ -169,15 +195,23 @@ describe('POST /auth/password/reset', () => {
 
     await api(app).reset({ challengeId: await startReset(), code: OTP, newPassword: NEW_PASSWORD });
 
-    expect((await testDb.user.findUniqueOrThrow({ where: { email } })).emailVerifiedAt).not.toBeNull();
+    expect(
+      (await testDb.user.findUniqueOrThrow({ where: { email } })).emailVerifiedAt,
+    ).not.toBeNull();
   });
 
   it('is single use', async () => {
     await signIn(app, email);
     const challengeId = await startReset();
-    expect((await api(app).reset({ challengeId, code: OTP, newPassword: NEW_PASSWORD })).status).toBe(204);
+    expect(
+      (await api(app).reset({ challengeId, code: OTP, newPassword: NEW_PASSWORD })).status,
+    ).toBe(204);
 
-    const again = await api(app).reset({ challengeId, code: OTP, newPassword: 'another passphrase 2' });
+    const again = await api(app).reset({
+      challengeId,
+      code: OTP,
+      newPassword: 'another passphrase 2',
+    });
     expect(again.status).toBe(400);
     expect((await api(app).login({ email, password: NEW_PASSWORD })).status).toBe(200);
   });
@@ -196,27 +230,46 @@ describe('POST /auth/password/reset', () => {
   describe('wrong codes', () => {
     it('answers OTP_INVALID with no attempt counter, so a real challenge looks like the fake one', async () => {
       await signIn(app, email);
-      const real = await api(app).reset({ challengeId: await startReset(), code: '000000', newPassword: NEW_PASSWORD });
+      const real = await api(app).reset({
+        challengeId: await startReset(),
+        code: '000000',
+        newPassword: NEW_PASSWORD,
+      });
       const fakeId = (await api(app).forgot({ email: 'nobody@example.test' })).body.challengeId;
-      const fake = await api(app).reset({ challengeId: fakeId, code: '000000', newPassword: NEW_PASSWORD });
+      const fake = await api(app).reset({
+        challengeId: fakeId,
+        code: '000000',
+        newPassword: NEW_PASSWORD,
+      });
 
       expect(real.status).toBe(400);
       expect(real.body.error.code).toBe('OTP_INVALID');
       expect(real.body.error.details).toBeUndefined();
-      expect({ ...real.body.error, requestId: undefined }).toEqual({ ...fake.body.error, requestId: undefined });
+      expect({ ...real.body.error, requestId: undefined }).toEqual({
+        ...fake.body.error,
+        requestId: undefined,
+      });
     });
 
     it('locks the challenge after 5 wrong codes, even for the right one, and logs a warning', async () => {
       await signIn(app, email);
       const challengeId = await startReset();
       for (let i = 0; i < 5; i += 1) {
-        expect((await api(app).reset({ challengeId, code: '000000', newPassword: NEW_PASSWORD })).status).toBe(400);
+        expect(
+          (await api(app).reset({ challengeId, code: '000000', newPassword: NEW_PASSWORD })).status,
+        ).toBe(400);
       }
 
-      expect((await api(app).reset({ challengeId, code: OTP, newPassword: NEW_PASSWORD })).status).toBe(400);
-      expect((await testDb.otpChallenge.findUniqueOrThrow({ where: { id: challengeId } })).attempts).toBe(5);
+      expect(
+        (await api(app).reset({ challengeId, code: OTP, newPassword: NEW_PASSWORD })).status,
+      ).toBe(400);
+      expect(
+        (await testDb.otpChallenge.findUniqueOrThrow({ where: { id: challengeId } })).attempts,
+      ).toBe(5);
       expect((await api(app).login({ email, password: PASSWORD })).status).toBe(200);
-      const warns = logs.records().filter((r) => r.msg === 'otp challenge locked after too many wrong codes');
+      const warns = logs
+        .records()
+        .filter((r) => r.msg === 'otp challenge locked after too many wrong codes');
       expect(warns).toHaveLength(1);
       expect(warns[0]).toMatchObject({ level: 40, purpose: 'RESET' });
     });
@@ -233,13 +286,21 @@ describe('POST /auth/password/reset', () => {
     it('refuses a LOGIN challenge', async () => {
       await signIn(app, email);
       const login = await api(app).login({ email, password: PASSWORD });
-      const res = await api(app).reset({ challengeId: login.body.challengeId, code: OTP, newPassword: NEW_PASSWORD });
+      const res = await api(app).reset({
+        challengeId: login.body.challengeId,
+        code: OTP,
+        newPassword: NEW_PASSWORD,
+      });
       expect(res.status).toBe(400);
       expect((await api(app).login({ email, password: PASSWORD })).status).toBe(200);
     });
 
     it('refuses a made-up id', async () => {
-      const res = await api(app).reset({ challengeId: '7d0c4bb1-1b0b-4cd3-8e1e-2f2b6ad5d3a1', code: OTP, newPassword: NEW_PASSWORD });
+      const res = await api(app).reset({
+        challengeId: '7d0c4bb1-1b0b-4cd3-8e1e-2f2b6ad5d3a1',
+        code: OTP,
+        newPassword: NEW_PASSWORD,
+      });
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe('OTP_INVALID');
     });
@@ -266,29 +327,57 @@ describe('POST /auth/password/reset', () => {
       ['code that is not 6 digits', { code: '12345' }],
       ['unknown key', { extra: 1 }],
       ['non-uuid challenge id', { challengeId: 'nope' }],
-    ])('rejects %s with 400 VALIDATION_ERROR and leaves the challenge untouched', async (_name, override) => {
-      await signIn(app, email);
-      const challengeId = await startReset();
+    ])(
+      'rejects %s with 400 VALIDATION_ERROR and leaves the challenge untouched',
+      async (_name, override) => {
+        await signIn(app, email);
+        const challengeId = await startReset();
 
-      const res = await api(app).reset({ challengeId, code: OTP, newPassword: NEW_PASSWORD, ...override });
+        const res = await api(app).reset({
+          challengeId,
+          code: OTP,
+          newPassword: NEW_PASSWORD,
+          ...override,
+        });
 
-      expect(res.status).toBe(400);
-      expect(res.body.error.code).toBe('VALIDATION_ERROR');
-      const row = await testDb.otpChallenge.findUniqueOrThrow({ where: { id: challengeId } });
-      expect(row).toMatchObject({ consumedAt: null, attempts: 0 });
-    });
+        expect(res.status).toBe(400);
+        expect(res.body.error.code).toBe('VALIDATION_ERROR');
+        const row = await testDb.otpChallenge.findUniqueOrThrow({ where: { id: challengeId } });
+        expect(row).toMatchObject({ consumedAt: null, attempts: 0 });
+      },
+    );
 
     it('accepts a password of exactly 8 characters and one of exactly 72 bytes', async () => {
       await signIn(app, email);
-      expect((await api(app).reset({ challengeId: await startReset(), code: OTP, newPassword: '12345678' })).status).toBe(204);
-      expect((await api(app).reset({ challengeId: await startReset(), code: OTP, newPassword: 'x'.repeat(72) })).status).toBe(204);
+      expect(
+        (
+          await api(app).reset({
+            challengeId: await startReset(),
+            code: OTP,
+            newPassword: '12345678',
+          })
+        ).status,
+      ).toBe(204);
+      expect(
+        (
+          await api(app).reset({
+            challengeId: await startReset(),
+            code: OTP,
+            newPassword: 'x'.repeat(72),
+          })
+        ).status,
+      ).toBe(204);
     });
   });
 
   it('never writes the new password or the code to the logs', async () => {
     await signIn(app, email);
     await api(app).reset({ challengeId: await startReset(), code: OTP, newPassword: NEW_PASSWORD });
-    await api(app).reset({ challengeId: await startReset(), code: '000000', newPassword: NEW_PASSWORD });
+    await api(app).reset({
+      challengeId: await startReset(),
+      code: '000000',
+      newPassword: NEW_PASSWORD,
+    });
 
     expect(logs.text()).not.toContain(NEW_PASSWORD);
     expect(logs.text()).not.toContain('"code":"112233"');
@@ -376,7 +465,10 @@ describe('POST /auth/password/forgot rate limit', () => {
   beforeEach(resetDb);
 
   it('allows 3 per IP + email per hour, then 429 for that email only', async () => {
-    const app = createAuthApp({ now: createClock().now, rateLimitConfig: { ...config, rateLimitEnabled: true } });
+    const app = createAuthApp({
+      now: createClock().now,
+      rateLimitConfig: { ...config, rateLimitEnabled: true },
+    });
     await signIn(app, email);
 
     const statuses: number[] = [];
@@ -390,9 +482,13 @@ describe('POST /auth/password/forgot rate limit', () => {
   });
 
   it('applies to unknown emails too, so the limit itself reveals nothing', async () => {
-    const app = createAuthApp({ now: createClock().now, rateLimitConfig: { ...config, rateLimitEnabled: true } });
+    const app = createAuthApp({
+      now: createClock().now,
+      rateLimitConfig: { ...config, rateLimitEnabled: true },
+    });
     const statuses: number[] = [];
-    for (let i = 0; i < 4; i += 1) statuses.push((await api(app).forgot({ email: 'ghost@example.test' })).status);
+    for (let i = 0; i < 4; i += 1)
+      statuses.push((await api(app).forgot({ email: 'ghost@example.test' })).status);
     expect(statuses).toEqual([202, 202, 202, 429]);
   });
 });

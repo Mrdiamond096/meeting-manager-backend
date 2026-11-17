@@ -10,7 +10,12 @@ interface LimiterOptions {
   key: (req: Request) => string;
 }
 
-export function createRateLimiter({ enabled, windowMs, limit, key }: LimiterOptions): RequestHandler {
+export function createRateLimiter({
+  enabled,
+  windowMs,
+  limit,
+  key,
+}: LimiterOptions): RequestHandler {
   return rateLimit({
     windowMs,
     limit,
@@ -34,7 +39,10 @@ export const byUser = (req: Request) => req.user?.id ?? byIp(req);
 export type RateLimitConfig = Pick<Config, 'rateLimitEnabled' | 'rateLimits'>;
 
 /** Each factory owns its settings and creates independent stores for each mounted limiter. */
-export function createRateLimits({ rateLimitEnabled: enabled, rateLimits: limits }: RateLimitConfig) {
+export function createRateLimits({
+  rateLimitEnabled: enabled,
+  rateLimits: limits,
+}: RateLimitConfig) {
   const factory = (setting: { windowMs: number; limit: number }, key: LimiterOptions['key']) => {
     const options = { ...setting, key, enabled };
     return () => createRateLimiter(options);

@@ -48,7 +48,10 @@ export function authRouter(deps: ModuleDeps, options: AuthRouterOptions = {}): R
   // Each successful reset costs a bcrypt hash; the per-challenge attempt cap does not cover that.
   const resetByIp = createRateLimiter({ windowMs: 15 * 60_000, limit: 10, key: byIp });
 
-  router.post('/register', rateLimits.register(), async (req, res) => {
+  // Register limit (ADR-013: 3 per IP per hour) is switched off for the demo: a presentation registers more
+  // accounts than that from one machine. It works and is tested; to turn it back on, restore the middleware:
+  //   router.post('/register', rateLimits.register(), async (req, res) => {
+  router.post('/register', async (req, res) => {
     const body = parseBody(registerBody, req);
     res.status(201).json(challengeDto(await service.register(body)));
   });

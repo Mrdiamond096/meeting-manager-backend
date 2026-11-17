@@ -93,7 +93,7 @@ All OTP challenges: 5 minutes TTL, single use, invalid after 5 wrong codes (logg
 
 | Method | Path | Body | Success | Errors |
 |---|---|---|---|---|
-| POST | `/auth/register` | `{ email, password }` | 201 `{ challengeId, expiresAt }` (REGISTER challenge) | 400, 409 `EMAIL_TAKEN` (verified account exists), 429 (3/h per IP) |
+| POST | `/auth/register` | `{ email, password }` | 201 `{ challengeId, expiresAt }` (REGISTER challenge) | 400, 409 `EMAIL_TAKEN` (verified account exists), 429 (3/h per IP; **off for the demo**, see `auth/router.ts`) |
 | POST | `/auth/login` | `{ email, password }` | 200 `{ challengeId, expiresAt }` (LOGIN challenge) | 400, 401 `INVALID_CREDENTIALS`, 429 (5/15 min per IP+email) |
 | POST | `/auth/otp/verify` | `{ challengeId, code }` | 200 `{ user: User }` + `Set-Cookie: sid` (REGISTER also marks email verified and signs in) | 400 `OTP_INVALID` with `details: [{ path: "attemptsRemaining", message: "3" }]` |
 | POST | `/auth/otp/resend` | `{ challengeId }` | 200 `{ challengeId, expiresAt }` (old challenge invalidated) | 400 `OTP_INVALID`, 429 |

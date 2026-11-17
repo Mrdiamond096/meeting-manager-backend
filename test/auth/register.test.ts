@@ -126,7 +126,8 @@ describe('POST /auth/register rate limit', () => {
     config.rateLimitEnabled = previous;
   });
 
-  it('allows 3 registrations per hour per IP, then 429 RATE_LIMITED', async () => {
+  // Skipped while the register limit is off for the demo (see auth/router.ts); re-enable together with it.
+  it.skip('allows 3 registrations per hour per IP, then 429 RATE_LIMITED', async () => {
     const app = createAuthApp({ now: createClock().now });
     for (const n of [1, 2, 3]) {
       expect((await api(app).register({ email: `u${n}@example.test`, password: PASSWORD })).status).toBe(201);

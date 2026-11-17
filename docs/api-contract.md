@@ -18,7 +18,7 @@ Design references: ADR-005 (datetime), ADR-006 (candidate identity), ADR-007 (co
 | Auth | Cookie `sid` (httpOnly, SameSite=Lax, Path=/). All routes except `/auth/*` and `/health/*` need a session → otherwise 401 |
 | CSRF | Non-GET requests with an `Origin` header not in `ALLOWED_ORIGINS` → 403 `ORIGIN_NOT_ALLOWED` |
 | Request id | Optional `X-Request-Id` (`[A-Za-z0-9-]{1,64}`); always returned in the `X-Request-Id` header and in error bodies |
-| Rate limit | 429 `RATE_LIMITED` with `RateLimit*` headers (ADR-013 table). Writes on meetings/candidates/feedback: 60/min per user |
+| Rate limit | 429 `RATE_LIMITED` with `RateLimit*` headers. Defaults are the ADR-013 table, each overridable with `RATE_LIMIT_*` (backend README). Writes on meetings/candidates/feedback: 60/min per user by default |
 
 ### Error body (every non-2xx)
 

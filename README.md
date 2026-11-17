@@ -68,7 +68,13 @@ value) and exits 1. Docker Compose reads `.env.example`.
 | `LOG_LEVEL` | `info` (`silent` in test) | `fatal` … `trace`, `silent` |
 | `LOG_PRETTY` | `false` | Human-readable logs for local dev; keep JSON in production |
 | `APP_VERSION` | `dev` | Returned by `/api/health/live` |
-| `RATE_LIMIT_ENABLED` | `true` | Keep `true` in production |
+| `RATE_LIMIT_ENABLED` | `true` | Turns every limit below on or off. Keep `true` in production |
+| `RATE_LIMIT_LOGIN` | `5/15` | Each limit is `max/minutes`. Per IP + email |
+| `RATE_LIMIT_REGISTER` | `3/60` | Per IP |
+| `RATE_LIMIT_FORGOT_PASSWORD` | `3/60` | Per IP + email |
+| `RATE_LIMIT_OTP_RESEND` | `10/15` | Per IP |
+| `RATE_LIMIT_PASSWORD_RESET` | `10/15` | Per IP |
+| `RATE_LIMIT_WRITE` | `60/1` | Creates, updates and deletes, per user |
 | `COOKIE_SECURE` | `false` | **Production: `true`** (HTTPS only session cookie) |
 | `ALLOWED_ORIGINS` | `http://localhost:8080,http://localhost:3001` | Comma-separated origins allowed to send state-changing requests. **Production: the real web origin** |
 | `OTP_PROVIDER` | `mock` | Only `mock` exists. The API refuses to start with it when `NODE_ENV=production`… |

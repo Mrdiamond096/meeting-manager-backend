@@ -33,7 +33,7 @@ describe('auth routes mounted in createApp', () => {
 
     expect(registered.status).toBe(201);
     expect(verified.status).toBe(200);
-    expect(verified.body.user).toMatchObject({ email: 'e2e@example.test', role: 'USER' });
+    expect(verified.body.user).toMatchObject({ email: 'e2e@example.test', role: 'RECRUITER' });
     expect(sessionToken(verified)).toHaveLength(43);
     expect(await testDb.session.findMany()).toHaveLength(1);
   });

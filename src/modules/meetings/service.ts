@@ -1,3 +1,4 @@
+import type { AuthUser } from '../../http/auth-guard.js';
 import { AppError } from '../../http/errors.js';
 import { parse } from '../../http/validate.js';
 import type { ModuleDeps } from '../deps.js';
@@ -153,7 +154,12 @@ export function meetingService(deps: ModuleDeps) {
       });
       return updated ? written(updated, userId) : stale(id);
     },
-    async remove(id: string, version: number) {
+    /** Recruiters cover each other's meetings but delete only their own; admins delete any (ADR-015). */
+    async remove(id: string, version: number, user: AuthUser) {
+      if (user.role !== 'ADMIN') {
+        const meeting = await requireMeeting(id);
+        if (meeting.meeting.createdBy !== user.id) throw new AppError('FORBIDDEN');
+      }
       if (!(await repo.remove(id, version))) await stale(id);
     },
   };

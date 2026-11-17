@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SELF_SERVICE_ROLES } from '../../db/constants.js';
 
 /** ADR-009: trimmed + lowercased, at most 254 characters. */
 export const email = z.string().trim().toLowerCase().email().max(254);
@@ -19,7 +20,9 @@ export const challengeId = z.string().uuid();
 
 export const otpCode = z.string().regex(/^\d{6}$/, 'Code must be 6 digits');
 
-export const registerBody = z.object({ email, password }).strict();
+export const registerBody = z
+  .object({ email, password, role: z.enum(SELF_SERVICE_ROLES).default('RECRUITER') })
+  .strict();
 
 /**
  * No length rules on login: a wrong-length password is simply a wrong password (same 401 as any other),

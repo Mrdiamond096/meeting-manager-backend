@@ -217,7 +217,11 @@ export interface SeedOptions {
   /** Already hashed with the same bcrypt cost as registration. */
   passwordHash: string;
   now: Date;
+  /** A read-only INTERVIEWER login with the same password; defaults to DEMO_INTERVIEWER_EMAIL. */
+  interviewerEmail?: string;
 }
+
+export const DEMO_INTERVIEWER_EMAIL = 'interviewer@example.com';
 
 export interface SeedResult {
   userId: string;
@@ -228,15 +232,35 @@ export interface SeedResult {
 
 export async function seedDemoData(
   db: Database,
-  { email, passwordHash, now }: SeedOptions,
+  { email, passwordHash, now, interviewerEmail = DEMO_INTERVIEWER_EMAIL }: SeedOptions,
 ): Promise<SeedResult> {
   const today = startOfBangkokDay(now);
 
   return db.$transaction(async (tx) => {
     const user = await tx.user.upsert({
       where: { email },
-      create: { email, passwordHash, emailVerifiedAt: now, createdAt: now, updatedAt: now },
-      update: { passwordHash, emailVerifiedAt: now, updatedAt: now },
+      create: {
+        email,
+        passwordHash,
+        role: 'ADMIN',
+        emailVerifiedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      },
+      update: { passwordHash, role: 'ADMIN', emailVerifiedAt: now, updatedAt: now },
+    });
+    // ADR-015: the demo user is an ADMIN; a second login shows the interviewer's read-only view.
+    await tx.user.upsert({
+      where: { email: interviewerEmail },
+      create: {
+        email: interviewerEmail,
+        passwordHash,
+        role: 'INTERVIEWER',
+        emailVerifiedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      },
+      update: { passwordHash, role: 'INTERVIEWER', emailVerifiedAt: now, updatedAt: now },
     });
 
     // Reset: sign the demo user out and drop what an earlier run created. Meetings go first because they hold

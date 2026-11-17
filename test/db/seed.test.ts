@@ -29,7 +29,7 @@ describe('seedDemoData', () => {
 
     const user = await testDb.user.findUniqueOrThrow({ where: { email: EMAIL } });
     expect(user.emailVerifiedAt).not.toBeNull();
-    expect(user.role).toBe('USER');
+    expect(user.role).toBe('ADMIN');
     expect(await testDb.candidate.count()).toBe(result.candidates);
     expect(await testDb.meeting.count()).toBe(result.meetings);
     expect(await testDb.feedback.count()).toBe(result.feedback);
@@ -90,7 +90,7 @@ describe('seedDemoData', () => {
     const firstId = (await testDb.user.findUniqueOrThrow({ where: { email: EMAIL } })).id;
     await run();
 
-    expect(await testDb.user.count()).toBe(1);
+    expect(await testDb.user.count()).toBe(2); // demo admin + demo interviewer
     expect((await testDb.user.findUniqueOrThrow({ where: { email: EMAIL } })).id).toBe(firstId);
     expect(await testDb.candidate.count()).toBe(first.candidates);
     expect(await testDb.meeting.count()).toBe(first.meetings);

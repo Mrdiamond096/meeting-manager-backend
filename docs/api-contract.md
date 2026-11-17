@@ -42,7 +42,7 @@ Design references: ADR-005 (datetime), ADR-006 (candidate identity), ADR-007 (co
 | `OTP_INVALID` | 400 | wrong, expired, consumed or locked challenge (one code for all, details carry `attemptsRemaining`) |
 | `UNAUTHENTICATED` | 401 | no or expired session |
 | `INVALID_CREDENTIALS` | 401 | login email/password wrong (same message for both) |
-| `FORBIDDEN` | 403 | role not allowed (future guest role) |
+| `FORBIDDEN` | 403 | the user's role may not perform this action (see Roles) |
 | `ORIGIN_NOT_ALLOWED` | 403 | CSRF origin check failed |
 | `NOT_FOUND` | 404 | unknown route or resource |
 | `VERSION_CONFLICT` | 409 | `version` does not match the current row |
@@ -80,7 +80,7 @@ interface Meeting {
 
 interface Feedback { id: string; meetingId: string; body: string; createdById: string | null; createdAt: string }
 
-interface User { id: string; email: string; role: 'USER' }
+interface User { id: string; email: string; role: 'ADMIN' | 'RECRUITER' | 'INTERVIEWER' }
 
 interface Page<T> { items: T[]; page: number; pageSize: number; total: number }
 ```
@@ -93,7 +93,7 @@ All OTP challenges: 5 minutes TTL, single use, invalid after 5 wrong codes (logg
 
 | Method | Path | Body | Success | Errors |
 |---|---|---|---|---|
-| POST | `/auth/register` | `{ email, password }` | 201 `{ challengeId, expiresAt }` (REGISTER challenge) | 400, 409 `EMAIL_TAKEN` (verified account exists), 429 (3/h per IP) |
+| POST | `/auth/register` | `{ email, password, role? }` (`RECRUITER` default \| `INTERVIEWER`) | 201 `{ challengeId, expiresAt }` (REGISTER challenge) | 400, 409 `EMAIL_TAKEN` (verified account exists), 429 (3/h per IP) |
 | POST | `/auth/login` | `{ email, password }` | 200 `{ challengeId, expiresAt }` (LOGIN challenge) | 400, 401 `INVALID_CREDENTIALS`, 429 (5/15 min per IP+email) |
 | POST | `/auth/otp/verify` | `{ challengeId, code }` | 200 `{ user: User }` + `Set-Cookie: sid` (REGISTER also marks email verified and signs in) | 400 `OTP_INVALID` with `details: [{ path: "attemptsRemaining", message: "3" }]` |
 | POST | `/auth/otp/resend` | `{ challengeId }` | 200 `{ challengeId, expiresAt }` (old challenge invalidated) | 400 `OTP_INVALID`, 429 |
@@ -105,6 +105,20 @@ All OTP challenges: 5 minutes TTL, single use, invalid after 5 wrong codes (logg
 Reset challenges cannot be resent (`/auth/otp/resend` answers `OTP_INVALID`, like for an unknown id): the client asks `/auth/password/forgot` again for a new code. Both rules exist so a real reset challenge cannot be told apart from the fake one.
 
 Rules: email trimmed + lowercased, ≤ 254 chars · password 8–72 bytes, no composition rules · register with an existing **unverified** email replaces its password and issues a new challenge · login of an unverified account works (the OTP proves the email) · session idle 8 h, absolute 7 days.
+
+### Roles (ADR-015)
+
+| Action | ADMIN | RECRUITER | INTERVIEWER |
+|---|---|---|---|
+| Read meetings, calendar, candidates | ✅ | ✅ | ✅ |
+| Add feedback | ✅ | ✅ | ✅ |
+| Create / edit / cancel any meeting, create candidates | ✅ | ✅ (team covers each other) | 403 |
+| Delete a meeting | any | only meetings they created | 403 |
+
+Register offers only `RECRUITER` and `INTERVIEWER`; a body with `role: "ADMIN"` is a 400. An email listed in
+`ADMIN_EMAILS` registers as `ADMIN` whatever it asked for. The demo seed makes the demo user `ADMIN` and adds
+`interviewer@example.com` (same password) as `INTERVIEWER`. Checks run in the API; the UI only hides what a role
+cannot do.
 
 ## 4. Meetings (WS-A)
 

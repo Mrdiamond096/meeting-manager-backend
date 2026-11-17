@@ -18,7 +18,11 @@ describe('POST /auth/register', () => {
     expect(res.body.expiresAt).toBe(new Date(clock.now().getTime() + OTP_TTL_MS).toISOString());
 
     const [user] = await testDb.user.findMany();
-    expect(user).toMatchObject({ email: 'a@example.test', role: 'USER', emailVerifiedAt: null });
+    expect(user).toMatchObject({
+      email: 'a@example.test',
+      role: 'RECRUITER',
+      emailVerifiedAt: null,
+    });
     const [challenge] = await testDb.otpChallenge.findMany();
     expect(challenge).toMatchObject({
       id: res.body.challengeId,
@@ -75,7 +79,12 @@ describe('POST /auth/register', () => {
       'body.password',
     ],
     ['password not a string', { email: 'a@example.test', password: 12345678 }, 'body.password'],
-    ['unknown key', { email: 'a@example.test', password: PASSWORD, role: 'ADMIN' }, 'body'],
+    [
+      'self-selected ADMIN role',
+      { email: 'a@example.test', password: PASSWORD, role: 'ADMIN' },
+      'body.role',
+    ],
+    ['unknown key', { email: 'a@example.test', password: PASSWORD, isAdmin: true }, 'body'],
   ])('rejects %s with 400 VALIDATION_ERROR', async (_name, body, path) => {
     const res = await api(app).register(body);
     expect(res.status).toBe(400);

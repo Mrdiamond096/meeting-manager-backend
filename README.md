@@ -143,3 +143,10 @@ prisma/                                          schema and migrations
 test/                                            one folder per module, helpers/ for the shared app and DB
 docs/api-contract.md                             the API contract (changes go in a separate "contract:" PR)
 ```
+
+## Dependency audit
+
+Run `npm run audit:ci` to check production dependencies with no exceptions, then all dependencies with pinned
+`audit-ci`. The sole dev-tool exception is recorded in `audit-ci.json` with a reason and expires at the end of
+2026-12-31 (UTC). High/critical findings outside that exception, production findings and audit failures block CI.
+Run `npm run test:audit` to verify the policy against clean, expired, unlisted, production and failed-audit fixtures.

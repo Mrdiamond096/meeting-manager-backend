@@ -41,7 +41,6 @@ export function authRouter(deps: ModuleDeps, options: AuthRouterOptions = {}): R
   const cookieSecure = options.cookieSecure ?? config.cookieSecure;
   const router = Router({ mergeParams: true });
 
-  // Backstop keyed by IP (stable across the new id every resend returns). The per-user budget lives in the service.
   router.post('/register', rateLimits.register(), async (req, res) => {
     const body = parseBody(registerBody, req);
     res.status(201).json(challengeDto(await service.register(body)));
@@ -59,6 +58,7 @@ export function authRouter(deps: ModuleDeps, options: AuthRouterOptions = {}): R
     res.json({ user: userDto(user) });
   });
 
+  // The IP backstop remains stable across challenge replacements; the service enforces the per-user budget.
   router.post('/otp/resend', rateLimits.otpResend(), async (req, res) => {
     const body = parseBody(resendBody, req);
     res.json(challengeDto(await service.resend(body)));

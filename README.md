@@ -79,13 +79,27 @@ value) and exits 1. Docker Compose reads `.env.example`.
 
 ## Tests
 
+Vitest + supertest against a real PostgreSQL. The global setup applies migrations to `DATABASE_URL` first.
+**Each run truncates every table**, so tests use their own database, `meeting_test`, never the app's `meeting`.
+
 ```bash
-make test           # local Node, needs PostgreSQL at DATABASE_URL
-make test-docker    # inside the api container
+make test-docker
 ```
 
-Vitest + supertest against a real PostgreSQL. The global setup applies migrations to `DATABASE_URL` first. **Each run truncates every table**, so point `DATABASE_URL` at a throwaway database, never one with
-data you want to keep. `npm run typecheck` checks types.
+This starts the compose PostgreSQL, creates `meeting_test` if it is missing, and runs the tests in a one-off api
+container with `DATABASE_URL` pointing at it. `-e` overrides `.env.example`, and the container regenerates the Prisma
+client that the `./src` bind mount hides.
+
+Local Node, after `make test-docker` has created the database once (or
+`docker compose exec db createdb -U meeting meeting_test`):
+
+```bash
+DATABASE_URL=postgres://meeting:meeting@localhost:5432/meeting_test npm test
+```
+
+`make test` without a `DATABASE_URL` falls back to the default, which is the app database, so always set it.
+
+`npm run typecheck` checks types.
 
 CI (`.github/workflows/ci.yml`) runs `npm ci`, `npm audit --audit-level=high`, typecheck, migrations, tests, the
 build, and then the production Docker image.

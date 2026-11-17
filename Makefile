@@ -20,8 +20,11 @@ build: ## Build images
 	$(COMPOSE) build
 logs: ## Follow logs
 	$(COMPOSE) logs -f
-test-docker: ## Run tests inside container
-	$(COMPOSE) run --rm --no-deps api npm test
+TEST_DB := meeting_test
+test-docker: ## Run tests in a container against the separate meeting_test database (tests truncate every table)
+	$(COMPOSE) up -d --wait db
+	$(COMPOSE) exec -T db sh -c 'psql -U meeting -tAc "select 1 from pg_database where datname = '"'"'$(TEST_DB)'"'"'" | grep -q 1 || createdb -U meeting $(TEST_DB)'
+	$(COMPOSE) run --rm --no-deps -e DATABASE_URL=postgres://meeting:meeting@db:5432/$(TEST_DB) api sh -c 'npx prisma generate >/dev/null && npm test'
 clean: ## Remove containers + volumes
 	$(COMPOSE) down -v --remove-orphans
 

@@ -19,7 +19,8 @@
     "db:seed": "sh -c 'if [ -f src/db/seed-cli.ts ]; then tsx src/db/seed-cli.ts; else node dist/db/seed-cli.js; fi'",
     "postinstall": "prisma generate",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" \"*.ts\""
+    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" \"*.ts\"",
+    "audit:ci": "node scripts/audit-gate.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",

@@ -26,7 +26,9 @@ describe('POST /auth/otp/resend', () => {
     const old = await api(app).verify({ challengeId: first.challengeId, code: OTP });
     expect(old.status).toBe(400);
     expect(old.body.error.code).toBe('OTP_INVALID');
-    expect((await api(app).verify({ challengeId: res.body.challengeId, code: OTP })).status).toBe(200);
+    expect((await api(app).verify({ challengeId: res.body.challengeId, code: OTP })).status).toBe(
+      200,
+    );
   });
 
   it('keeps the purpose and owner of the original challenge', async () => {
@@ -36,12 +38,17 @@ describe('POST /auth/otp/resend', () => {
     const rows = await testDb.otpChallenge.findMany();
     const created = rows.find((r) => r.id === res.body.challengeId);
     const original = rows.find((r) => r.id === first.challengeId);
-    expect(created).toMatchObject({ purpose: 'REGISTER', userId: original!.userId, consumedAt: null });
+    expect(created).toMatchObject({
+      purpose: 'REGISTER',
+      userId: original!.userId,
+      consumedAt: null,
+    });
   });
 
   it('carries wrong-code attempts over so resending cannot reset the guess budget', async () => {
     const first = await registerUser(app);
-    for (let i = 0; i < 3; i += 1) await api(app).verify({ challengeId: first.challengeId, code: '000000' });
+    for (let i = 0; i < 3; i += 1)
+      await api(app).verify({ challengeId: first.challengeId, code: '000000' });
 
     const res = await api(app).resend({ challengeId: first.challengeId });
 
@@ -51,7 +58,8 @@ describe('POST /auth/otp/resend', () => {
 
   it('refuses to resend a locked challenge', async () => {
     const first = await registerUser(app);
-    for (let i = 0; i < 5; i += 1) await api(app).verify({ challengeId: first.challengeId, code: '000000' });
+    for (let i = 0; i < 5; i += 1)
+      await api(app).verify({ challengeId: first.challengeId, code: '000000' });
 
     const res = await api(app).resend({ challengeId: first.challengeId });
 
@@ -77,7 +85,9 @@ describe('POST /auth/otp/resend', () => {
     const res = await api(app).resend({ challengeId: first.challengeId });
 
     expect(res.status).toBe(200);
-    expect((await api(app).verify({ challengeId: res.body.challengeId, code: OTP })).status).toBe(200);
+    expect((await api(app).verify({ challengeId: res.body.challengeId, code: OTP })).status).toBe(
+      200,
+    );
   });
 
   it('answers OTP_INVALID for an unknown challenge id', async () => {
@@ -120,12 +130,23 @@ describe('OTP delivery', () => {
     await api(app).resend({ challengeId: first.challengeId });
 
     expect(deliver).toHaveBeenCalledTimes(2);
-    expect(deliver).toHaveBeenNthCalledWith(1, { userId: expect.any(String), purpose: 'REGISTER' }, '654321');
-    expect(deliver).toHaveBeenNthCalledWith(2, { userId: expect.any(String), purpose: 'REGISTER' }, '654321');
+    expect(deliver).toHaveBeenNthCalledWith(
+      1,
+      { userId: expect.any(String), purpose: 'REGISTER' },
+      '654321',
+    );
+    expect(deliver).toHaveBeenNthCalledWith(
+      2,
+      { userId: expect.any(String), purpose: 'REGISTER' },
+      '654321',
+    );
   });
 
   it('validates against the code the provider generated', async () => {
-    const app = createAuthApp({ now: createClock().now, otpProvider: new MockOtpProvider('999000') });
+    const app = createAuthApp({
+      now: createClock().now,
+      otpProvider: new MockOtpProvider('999000'),
+    });
     const { challengeId } = await registerUser(app);
 
     expect((await api(app).verify({ challengeId, code: OTP })).status).toBe(400);
@@ -138,7 +159,11 @@ describe('resend budget', () => {
   beforeEach(resetDb);
 
   /** Resends repeatedly, always using the id returned by the previous resend (what a client or attacker does). */
-  async function chainResends(app: ReturnType<typeof createAuthApp>, challengeId: string, times: number) {
+  async function chainResends(
+    app: ReturnType<typeof createAuthApp>,
+    challengeId: string,
+    times: number,
+  ) {
     const statuses: number[] = [];
     let current = challengeId;
     for (let i = 0; i < times; i += 1) {
@@ -195,7 +220,7 @@ describe('resend budget', () => {
     expect((await api(app).resend({ challengeId: last })).status).toBe(200);
   });
 
-  it('keeps one account from spending another account\'s budget', async () => {
+  it("keeps one account from spending another account's budget", async () => {
     const app = createAuthApp({ now: createClock().now });
     const a = await registerUser(app, 'a@example.test');
     const b = await registerUser(app, 'b@example.test');
@@ -208,7 +233,9 @@ describe('resend budget', () => {
     const app = createAuthApp({ now: createClock().now });
     const { challengeId } = await registerUser(app);
 
-    const results = await Promise.all(Array.from({ length: 10 }, () => api(app).resend({ challengeId })));
+    const results = await Promise.all(
+      Array.from({ length: 10 }, () => api(app).resend({ challengeId })),
+    );
 
     // All ten use the same id, so at most one can win, and nothing may fail with a 5xx.
     expect(results.filter((r) => r.status === 200)).toHaveLength(1);
@@ -220,10 +247,14 @@ describe('POST /auth/otp/resend IP backstop', () => {
   beforeEach(resetDb);
 
   it('allows 10 requests per IP per 15 minutes whatever challenge ids they carry, then 429', async () => {
-    const app = createAuthApp({ now: createClock().now, rateLimitConfig: { ...config, rateLimitEnabled: true } });
+    const app = createAuthApp({
+      now: createClock().now,
+      rateLimitConfig: { ...config, rateLimitEnabled: true },
+    });
 
     const statuses: number[] = [];
-    for (let i = 0; i < 11; i += 1) statuses.push((await api(app).resend({ challengeId: randomUUID() })).status);
+    for (let i = 0; i < 11; i += 1)
+      statuses.push((await api(app).resend({ challengeId: randomUUID() })).status);
 
     expect(statuses).toEqual([...Array(10).fill(400), 429]);
   });

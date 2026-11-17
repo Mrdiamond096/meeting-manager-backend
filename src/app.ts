@@ -45,7 +45,8 @@ export function createApp(deps: AppDeps): Express {
   v1.use('/auth', authRouter(moduleDeps, { rateLimitConfig }));
 
   const limitWrites = rateLimits.write();
-  const writes: RequestHandler = (req, res, next) => (req.method === 'GET' ? next() : limitWrites(req, res, next));
+  const writes: RequestHandler = (req, res, next) =>
+    req.method === 'GET' ? next() : limitWrites(req, res, next);
   v1.use('/meetings/:id/feedback', requireAuth, writes, feedbackRouter(moduleDeps));
   v1.use('/meetings', requireAuth, writes, meetingsRouter(moduleDeps));
   v1.use('/candidates', requireAuth, writes, candidatesRouter(moduleDeps));

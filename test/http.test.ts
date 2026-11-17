@@ -10,7 +10,10 @@ describe('http infrastructure', () => {
   it('returns 401 with the error shape on protected routes without a session', async () => {
     const res = await request(createTestApp()).get('/api/v1/meetings');
     expect(res.status).toBe(401);
-    expect(res.body.error).toMatchObject({ code: 'UNAUTHENTICATED', requestId: expect.any(String) });
+    expect(res.body.error).toMatchObject({
+      code: 'UNAUTHENTICATED',
+      requestId: expect.any(String),
+    });
     expect(res.headers['x-request-id']).toBe(res.body.error.requestId);
   });
 
@@ -48,9 +51,14 @@ describe('http infrastructure', () => {
 
   it('lets allowed origins, missing Origin and GET through the origin guard', async () => {
     const app = createTestApp();
-    expect((await request(app).post('/api/v1/auth/x').set('Origin', 'http://localhost:8080').send({})).status).toBe(404);
+    expect(
+      (await request(app).post('/api/v1/auth/x').set('Origin', 'http://localhost:8080').send({}))
+        .status,
+    ).toBe(404);
     expect((await request(app).post('/api/v1/auth/x').send({})).status).toBe(404);
-    expect((await request(app).get('/api/v1/auth/x').set('Origin', 'https://evil.example')).status).toBe(404);
+    expect(
+      (await request(app).get('/api/v1/auth/x').set('Origin', 'https://evil.example')).status,
+    ).toBe(404);
   });
 
   it('maps bodies over 100kb to 413', async () => {
@@ -68,7 +76,9 @@ describe('config', () => {
   });
 
   it('allows the mock in production only with ALLOW_MOCK_OTP=true (local Docker demo)', () => {
-    expect(loadConfig({ NODE_ENV: 'production', ALLOW_MOCK_OTP: 'true' }).otp.allowMockInProduction).toBe(true);
+    expect(
+      loadConfig({ NODE_ENV: 'production', ALLOW_MOCK_OTP: 'true' }).otp.allowMockInProduction,
+    ).toBe(true);
   });
 
   it('rejects invalid values without echoing them', () => {

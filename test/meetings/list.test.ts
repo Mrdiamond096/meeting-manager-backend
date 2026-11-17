@@ -13,38 +13,73 @@ describe('meeting list and calendar', () => {
 
   it('returns empty metadata and an empty page beyond the end', async () => {
     const { app } = await loginAs();
-    expect((await request(app).get(root)).body).toEqual({ items: [], page: 1, pageSize: 10, total: 0 });
-    expect((await request(app).get(root).query({ page: 999 })).body).toEqual({ items: [], page: 999, pageSize: 10, total: 0 });
+    expect((await request(app).get(root)).body).toEqual({
+      items: [],
+      page: 1,
+      pageSize: 10,
+      total: 0,
+    });
+    expect((await request(app).get(root).query({ page: 999 })).body).toEqual({
+      items: [],
+      page: 999,
+      pageSize: 10,
+      total: 0,
+    });
   });
 
   it('uses deterministic date/id ordering and does not lose equal-date items between pages', async () => {
     const { app, user } = await loginAs();
     const ids = Array.from({ length: 5 }, () => randomUUID()).sort();
-    await testDb.meeting.createMany({ data: ids.map((id) => ({ id, title: id, dueDate: new Date(from), createdBy: user.id })) });
+    await testDb.meeting.createMany({
+      data: ids.map((id) => ({ id, title: id, dueDate: new Date(from), createdBy: user.id })),
+    });
     const first = await request(app).get(root).query({ pageSize: 2 });
     const second = await request(app).get(root).query({ pageSize: 2, page: 2 });
     const last = await request(app).get(root).query({ pageSize: 2, page: 3 });
     expect(first.body).toMatchObject({ page: 1, pageSize: 2, total: 5 });
-    expect([...first.body.items, ...second.body.items, ...last.body.items].map((m: { id: string }) => m.id)).toEqual(ids);
+    expect(
+      [...first.body.items, ...second.body.items, ...last.body.items].map(
+        (m: { id: string }) => m.id,
+      ),
+    ).toEqual(ids);
     expect((await request(app).get(root).query({ pageSize: 2, page: 4 })).body.items).toEqual([]);
   });
 
   it('applies combined filters to both page items and count with inclusive from/exclusive to', async () => {
     const { app, user } = await loginAs();
     const other = await createUser();
-    const candidate = await testDb.candidate.create({ data: { name: 'Alice', position: 'Software Engineer' } });
-    const seed = { title: 'Matching', dueDate: new Date(from), candidateId: candidate!.id, createdBy: user.id };
-    await testDb.meeting.createMany({ data: [
-      seed, { ...seed, status: 'CANCELLED' }, { ...seed, dueDate: new Date(to) },
-      { ...seed, createdBy: other.id }, { ...seed, candidateId: null }, { ...seed, createdBy: null },
-    ] });
+    const candidate = await testDb.candidate.create({
+      data: { name: 'Alice', position: 'Software Engineer' },
+    });
+    const seed = {
+      title: 'Matching',
+      dueDate: new Date(from),
+      candidateId: candidate!.id,
+      createdBy: user.id,
+    };
+    await testDb.meeting.createMany({
+      data: [
+        seed,
+        { ...seed, status: 'CANCELLED' },
+        { ...seed, dueDate: new Date(to) },
+        { ...seed, createdBy: other.id },
+        { ...seed, candidateId: null },
+        { ...seed, createdBy: null },
+      ],
+    });
     const filters = { from, to, status: 'PENDING', candidateId: candidate!.id, mine: 'true' };
     const res = await request(app).get(root).query(filters);
     expect(res.status).toBe(200);
     expect(res.body.total).toBe(1);
     expect(res.body.items).toHaveLength(1);
-    expect(res.body.items[0]).toMatchObject({ createdById: user.id, isMine: true, dueDate: new Date(from).toISOString() });
-    const all = await request(app).get(root).query({ ...filters, mine: 'false' });
+    expect(res.body.items[0]).toMatchObject({
+      createdById: user.id,
+      isMine: true,
+      dueDate: new Date(from).toISOString(),
+    });
+    const all = await request(app)
+      .get(root)
+      .query({ ...filters, mine: 'false' });
     expect(all.body.total).toBe(3);
     expect(all.body.items.filter((m: { isMine: boolean }) => !m.isMine)).toHaveLength(2);
     const missing = await request(app).get(root).query({ candidateId: randomUUID() });
@@ -53,13 +88,30 @@ describe('meeting list and calendar', () => {
   });
 
   it.each([
-    { page: '0' }, { page: '-1' }, { page: '1.5' }, { page: '1e2' }, { page: '9007199254740991' },
-    { pageSize: '0' }, { pageSize: '51' }, { pageSize: '' }, { page: ['1', '2'] },
-    { unknown: 'yes' }, { mine: '1' }, { mine: ['true', 'false'] }, { candidateId: 'bad' },
-    { status: 'COMPLETED' }, { from: '2026-11-20' }, { from: to, to: from }, { from, to: from },
-    { view: 'unknown' }, { view: 'range' }, { view: 'range', from }, { view: 'range', to },
+    { page: '0' },
+    { page: '-1' },
+    { page: '1.5' },
+    { page: '1e2' },
+    { page: '9007199254740991' },
+    { pageSize: '0' },
+    { pageSize: '51' },
+    { pageSize: '' },
+    { page: ['1', '2'] },
+    { unknown: 'yes' },
+    { mine: '1' },
+    { mine: ['true', 'false'] },
+    { candidateId: 'bad' },
+    { status: 'COMPLETED' },
+    { from: '2026-11-20' },
+    { from: to, to: from },
+    { from, to: from },
+    { view: 'unknown' },
+    { view: 'range' },
+    { view: 'range', from },
+    { view: 'range', to },
     { view: 'range', from, to: '2026-12-13T00:00:00.001Z' },
-    { view: 'range', from, to, page: '1' }, { view: 'range', from, to, pageSize: '10' },
+    { view: 'range', from, to, page: '1' },
+    { view: 'range', from, to, pageSize: '10' },
     { view: 'range', from, to, candidateId: randomUUID() },
   ])('rejects invalid or ambiguous query parameters: %j', async (query) => {
     const { app } = await loginAs();
@@ -71,13 +123,17 @@ describe('meeting list and calendar', () => {
   it('accepts exactly 42 days and returns only items, not paginated metadata', async () => {
     const { app, user } = await loginAs();
     const other = await createUser();
-    await testDb.meeting.createMany({ data: [
-      { title: 'Inclusive start', dueDate: new Date(from), createdBy: user.id },
-      { title: 'Exclusive end', dueDate: new Date(to), createdBy: user.id },
-      { title: 'Cancelled', dueDate: new Date(from), status: 'CANCELLED', createdBy: user.id },
-      { title: 'Someone else', dueDate: new Date(from), createdBy: other.id },
-    ] });
-    const res = await request(app).get(root).query({ view: 'range', from, to, mine: 'true', status: 'PENDING' });
+    await testDb.meeting.createMany({
+      data: [
+        { title: 'Inclusive start', dueDate: new Date(from), createdBy: user.id },
+        { title: 'Exclusive end', dueDate: new Date(to), createdBy: user.id },
+        { title: 'Cancelled', dueDate: new Date(from), status: 'CANCELLED', createdBy: user.id },
+        { title: 'Someone else', dueDate: new Date(from), createdBy: other.id },
+      ],
+    });
+    const res = await request(app)
+      .get(root)
+      .query({ view: 'range', from, to, mine: 'true', status: 'PENDING' });
     expect(res.status).toBe(200);
     expect(Object.keys(res.body)).toEqual(['items']);
     expect(res.body.items.map((m: { title: string }) => m.title)).toEqual(['Inclusive start']);
@@ -87,38 +143,81 @@ describe('meeting list and calendar', () => {
     const { app, user } = await loginAs();
     const at = (iso: string) => new Date(iso);
     const week = { from: '2026-11-16T00:00:00Z', to: '2026-11-23T00:00:00Z' };
-    await testDb.meeting.createMany({ data: [
-      // Sat 23:00 -> Mon 01:00: starts two days before the range and is still running in it.
-      { title: 'Weekend overnight', dueDate: at('2026-11-14T23:00:00Z'), endAt: at('2026-11-16T01:00:00Z') },
-      { title: 'Ends exactly at from', dueDate: at('2026-11-15T22:00:00Z'), endAt: at('2026-11-16T00:00:00Z') },
-      { title: 'No end, 20 min before', dueDate: at('2026-11-15T23:40:00Z') },
-      { title: 'No end, 40 min before', dueDate: at('2026-11-15T23:20:00Z') },
-      { title: 'Inside', dueDate: at('2026-11-18T10:00:00Z'), endAt: at('2026-11-18T11:00:00Z') },
-      { title: 'Runs past to', dueDate: at('2026-11-22T23:00:00Z'), endAt: at('2026-11-23T02:00:00Z') },
-      { title: 'Starts at to', dueDate: at('2026-11-23T00:00:00Z'), endAt: at('2026-11-23T01:00:00Z') },
-      { title: 'Spans the whole range', dueDate: at('2026-11-10T00:00:00Z'), endAt: at('2026-11-30T00:00:00Z'), createdBy: user.id },
-    ] });
-    const res = await request(app).get(root).query({ view: 'range', ...week });
+    await testDb.meeting.createMany({
+      data: [
+        // Sat 23:00 -> Mon 01:00: starts two days before the range and is still running in it.
+        {
+          title: 'Weekend overnight',
+          dueDate: at('2026-11-14T23:00:00Z'),
+          endAt: at('2026-11-16T01:00:00Z'),
+        },
+        {
+          title: 'Ends exactly at from',
+          dueDate: at('2026-11-15T22:00:00Z'),
+          endAt: at('2026-11-16T00:00:00Z'),
+        },
+        { title: 'No end, 20 min before', dueDate: at('2026-11-15T23:40:00Z') },
+        { title: 'No end, 40 min before', dueDate: at('2026-11-15T23:20:00Z') },
+        { title: 'Inside', dueDate: at('2026-11-18T10:00:00Z'), endAt: at('2026-11-18T11:00:00Z') },
+        {
+          title: 'Runs past to',
+          dueDate: at('2026-11-22T23:00:00Z'),
+          endAt: at('2026-11-23T02:00:00Z'),
+        },
+        {
+          title: 'Starts at to',
+          dueDate: at('2026-11-23T00:00:00Z'),
+          endAt: at('2026-11-23T01:00:00Z'),
+        },
+        {
+          title: 'Spans the whole range',
+          dueDate: at('2026-11-10T00:00:00Z'),
+          endAt: at('2026-11-30T00:00:00Z'),
+          createdBy: user.id,
+        },
+      ],
+    });
+    const res = await request(app)
+      .get(root)
+      .query({ view: 'range', ...week });
     expect(res.status).toBe(200);
     expect(res.body.items.map((m: { title: string }) => m.title)).toEqual([
-      'Spans the whole range', 'Weekend overnight', 'No end, 20 min before', 'Inside', 'Runs past to',
+      'Spans the whole range',
+      'Weekend overnight',
+      'No end, 20 min before',
+      'Inside',
+      'Runs past to',
     ]);
-    const mine = await request(app).get(root).query({ view: 'range', ...week, mine: 'true' });
-    expect(mine.body.items.map((m: { title: string }) => m.title)).toEqual(['Spans the whole range']);
+    const mine = await request(app)
+      .get(root)
+      .query({ view: 'range', ...week, mine: 'true' });
+    expect(mine.body.items.map((m: { title: string }) => m.title)).toEqual([
+      'Spans the whole range',
+    ]);
   });
 
   it('keeps the paged list filtered on the start time only', async () => {
     const { app } = await loginAs();
-    await testDb.meeting.create({ data: { title: 'Started before', dueDate: new Date('2026-11-14T23:00:00Z'), endAt: new Date('2026-11-16T01:00:00Z') } });
+    await testDb.meeting.create({
+      data: {
+        title: 'Started before',
+        dueDate: new Date('2026-11-14T23:00:00Z'),
+        endAt: new Date('2026-11-16T01:00:00Z'),
+      },
+    });
     const res = await request(app).get(root).query({ from: '2026-11-16T00:00:00Z' });
     expect(res.body.total).toBe(0);
   });
 
   it('returns 500 matches but rejects 501 instead of truncating the calendar', async () => {
     const { app, user } = await loginAs();
-    await testDb.meeting.createMany({ data: Array.from({ length: 500 }, (_, i) => ({
-      title: `Meeting ${i}`, dueDate: new Date(from), createdBy: user.id,
-    })) });
+    await testDb.meeting.createMany({
+      data: Array.from({ length: 500 }, (_, i) => ({
+        title: `Meeting ${i}`,
+        dueDate: new Date(from),
+        createdBy: user.id,
+      })),
+    });
     const query = { view: 'range', from, to };
     const full = await request(app).get(root).query(query);
     expect(full.status).toBe(200);
@@ -128,7 +227,13 @@ describe('meeting list and calendar', () => {
     expect(excess.status).toBe(400);
     expect(excess.body.error.code).toBe('VALIDATION_ERROR');
     // Mine filtering is applied before the cap, not after fetching a truncated global page.
-    expect((await request(app).get(root).query({ ...query, mine: 'true' })).body.items).toHaveLength(500);
+    expect(
+      (
+        await request(app)
+          .get(root)
+          .query({ ...query, mine: 'true' })
+      ).body.items,
+    ).toHaveLength(500);
   });
 
   it('requires authentication for range queries', async () => {
@@ -141,9 +246,11 @@ describe('meeting list and calendar', () => {
     const created = await request(app).post(root).send({ title: 'Meeting', dueDate: from });
     const url = `${root}/${created.body.id}`;
     const results = await Promise.all([
-      request(app).get(`${url}?extra=1`), request(app).post(`${root}?extra=1`).send({ title: 'Meeting', dueDate: from }),
+      request(app).get(`${url}?extra=1`),
+      request(app).post(`${root}?extra=1`).send({ title: 'Meeting', dueDate: from }),
       request(app).patch(`${url}?extra=1`).send({ version: 1, title: 'Update' }),
-      request(app).post(`${url}/cancel?extra=1`).send({ version: 1 }), request(app).delete(`${url}?version=1&extra=1`),
+      request(app).post(`${url}/cancel?extra=1`).send({ version: 1 }),
+      request(app).delete(`${url}?version=1&extra=1`),
     ]);
     expect(results.map((r) => r.status)).toEqual([400, 400, 400, 400, 400]);
   });
@@ -174,14 +281,21 @@ describe('range view validation messages', () => {
 
   it('adds no derived issues on top of a malformed page query', async () => {
     const { app } = await loginAs();
-    const res = await request(app).get('/api/v1/meetings?page=abc&from=bad&to=2026-11-20T00:00:00Z');
+    const res = await request(app).get(
+      '/api/v1/meetings?page=abc&from=bad&to=2026-11-20T00:00:00Z',
+    );
     expect(res.status).toBe(400);
-    expect(res.body.error.details.map((d: { path: string }) => d.path)).toEqual(['query.from', 'query.page']);
+    expect(res.body.error.details.map((d: { path: string }) => d.path)).toEqual([
+      'query.from',
+      'query.page',
+    ]);
   });
 
   it('rejects an unknown view value', async () => {
     const { app } = await loginAs();
-    const res = await request(app).get('/api/v1/meetings?view=week&from=2026-11-01T00:00:00Z&to=2026-11-02T00:00:00Z');
+    const res = await request(app).get(
+      '/api/v1/meetings?view=week&from=2026-11-01T00:00:00Z&to=2026-11-02T00:00:00Z',
+    );
     expect(res.status).toBe(400);
     expect(res.body.error.details[0].path).toBe('query.view');
   });

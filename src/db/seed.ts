@@ -41,55 +41,148 @@ interface MeetingTemplate {
 
 const MEETINGS: MeetingTemplate[] = [
   {
-    title: 'Technical interview: Somchai Jaidee', day: -9, hour: 10, minutes: 60, status: 'CONFIRMED',
-    candidate: 'somchai', type: 'ONLINE', provider: 'GOOGLE_MEET', description: 'System design and API questions.',
-    feedback: ['Strong on API design and PostgreSQL. Could explain trade-offs more.', 'Recommend moving to the final round.'],
+    title: 'Technical interview: Somchai Jaidee',
+    day: -9,
+    hour: 10,
+    minutes: 60,
+    status: 'CONFIRMED',
+    candidate: 'somchai',
+    type: 'ONLINE',
+    provider: 'GOOGLE_MEET',
+    description: 'System design and API questions.',
+    feedback: [
+      'Strong on API design and PostgreSQL. Could explain trade-offs more.',
+      'Recommend moving to the final round.',
+    ],
   },
   {
-    title: 'Portfolio review: Mali Chaiyasit', day: -6, hour: 14, minutes: 45, status: 'CONFIRMED',
-    candidate: 'mali', type: 'ONSITE', description: 'Walkthrough of two case studies.',
+    title: 'Portfolio review: Mali Chaiyasit',
+    day: -6,
+    hour: 14,
+    minutes: 45,
+    status: 'CONFIRMED',
+    candidate: 'mali',
+    type: 'ONSITE',
+    description: 'Walkthrough of two case studies.',
     feedback: ['Clear process and good accessibility awareness.'],
   },
   {
-    title: 'Screening call: David Chen', day: -4, hour: 11, minutes: 30, status: 'CANCELLED',
-    candidate: 'david', type: 'ONLINE', provider: 'ZOOM', description: 'Cancelled: the candidate accepted another offer.',
+    title: 'Screening call: David Chen',
+    day: -4,
+    hour: 11,
+    minutes: 30,
+    status: 'CANCELLED',
+    candidate: 'david',
+    type: 'ONLINE',
+    provider: 'ZOOM',
+    description: 'Cancelled: the candidate accepted another offer.',
   },
   {
-    title: 'Coding exercise: Napat Srisuk', day: -2, hour: 15, minutes: 90, status: 'CONFIRMED',
-    candidate: 'napat', type: 'ONLINE', provider: 'ZOOM',
+    title: 'Coding exercise: Napat Srisuk',
+    day: -2,
+    hour: 15,
+    minutes: 90,
+    status: 'CONFIRMED',
+    candidate: 'napat',
+    type: 'ONLINE',
+    provider: 'ZOOM',
     feedback: ['Clean React code, good tests. Slow start on the data-fetching part.'],
   },
-  { title: 'Team sync: hiring pipeline', day: 0, hour: 9, minutes: 30, status: 'CONFIRMED', type: 'ONSITE' },
   {
-    title: 'Technical interview: Alice Johnson', day: 0, hour: 14, minutes: 60, status: 'CONFIRMED',
-    candidate: 'alice', type: 'ONLINE', provider: 'GOOGLE_MEET', description: 'Full stack pairing session.',
+    title: 'Team sync: hiring pipeline',
+    day: 0,
+    hour: 9,
+    minutes: 30,
+    status: 'CONFIRMED',
+    type: 'ONSITE',
   },
   {
-    title: 'First call: Pimchanok Wongsa', day: 1, hour: 10, minutes: 30, status: 'PENDING',
-    candidate: 'pimchanok', type: 'ONLINE', provider: 'ZOOM',
+    title: 'Technical interview: Alice Johnson',
+    day: 0,
+    hour: 14,
+    minutes: 60,
+    status: 'CONFIRMED',
+    candidate: 'alice',
+    type: 'ONLINE',
+    provider: 'GOOGLE_MEET',
+    description: 'Full stack pairing session.',
   },
   {
-    title: 'Data pipeline case study: Arun Kittipong', day: 2, hour: 13, minutes: 60, status: 'CONFIRMED',
-    candidate: 'arun', type: 'ONSITE', description: 'Bring a laptop; the case study is on paper.',
+    title: 'First call: Pimchanok Wongsa',
+    day: 1,
+    hour: 10,
+    minutes: 30,
+    status: 'PENDING',
+    candidate: 'pimchanok',
+    type: 'ONLINE',
+    provider: 'ZOOM',
   },
   {
-    title: 'Product sense interview: Kanya Rattana', day: 3, hour: 16, minutes: 60, status: 'PENDING',
-    candidate: 'kanya', type: 'ONLINE', provider: 'OTHER',
+    title: 'Data pipeline case study: Arun Kittipong',
+    day: 2,
+    hour: 13,
+    minutes: 60,
+    status: 'CONFIRMED',
+    candidate: 'arun',
+    type: 'ONSITE',
+    description: 'Bring a laptop; the case study is on paper.',
   },
   {
-    title: 'Final round: Somchai Jaidee', day: 5, hour: 11, minutes: 90, status: 'PENDING',
-    candidate: 'somchai', type: 'ONSITE', description: 'Meet the engineering manager and the team.',
+    title: 'Product sense interview: Kanya Rattana',
+    day: 3,
+    hour: 16,
+    minutes: 60,
+    status: 'PENDING',
+    candidate: 'kanya',
+    type: 'ONLINE',
+    provider: 'OTHER',
   },
   {
-    title: 'Infrastructure interview: David Chen', day: 7, hour: 15, minutes: 60, status: 'PENDING',
-    candidate: 'david', type: 'ONLINE', provider: 'ZOOM',
+    title: 'Final round: Somchai Jaidee',
+    day: 5,
+    hour: 11,
+    minutes: 90,
+    status: 'PENDING',
+    candidate: 'somchai',
+    type: 'ONSITE',
+    description: 'Meet the engineering manager and the team.',
   },
-  { title: 'Offer discussion: Alice Johnson', day: 9, hour: 10, minutes: 30, status: 'PENDING', candidate: 'alice' },
   {
-    title: 'Design critique: Mali Chaiyasit', day: 12, hour: 14, minutes: 45, status: 'PENDING',
-    candidate: 'mali', type: 'ONLINE', provider: 'GOOGLE_MEET',
+    title: 'Infrastructure interview: David Chen',
+    day: 7,
+    hour: 15,
+    minutes: 60,
+    status: 'PENDING',
+    candidate: 'david',
+    type: 'ONLINE',
+    provider: 'ZOOM',
   },
-  { title: 'Interview day planning', day: 14, hour: 9, minutes: 60, status: 'PENDING', type: 'ONSITE' },
+  {
+    title: 'Offer discussion: Alice Johnson',
+    day: 9,
+    hour: 10,
+    minutes: 30,
+    status: 'PENDING',
+    candidate: 'alice',
+  },
+  {
+    title: 'Design critique: Mali Chaiyasit',
+    day: 12,
+    hour: 14,
+    minutes: 45,
+    status: 'PENDING',
+    candidate: 'mali',
+    type: 'ONLINE',
+    provider: 'GOOGLE_MEET',
+  },
+  {
+    title: 'Interview day planning',
+    day: 14,
+    hour: 9,
+    minutes: 60,
+    status: 'PENDING',
+    type: 'ONSITE',
+  },
 ];
 
 const BANGKOK_OFFSET_HOURS = 7;
@@ -100,12 +193,19 @@ const MINUTE_MS = 60 * 1000;
 /** Midnight at the start of `now`'s calendar day in Bangkok, as an instant. */
 function startOfBangkokDay(now: Date): Date {
   const shifted = new Date(now.getTime() + BANGKOK_OFFSET_HOURS * HOUR_MS);
-  const midnightLocal = Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate());
+  const midnightLocal = Date.UTC(
+    shifted.getUTCFullYear(),
+    shifted.getUTCMonth(),
+    shifted.getUTCDate(),
+  );
   return new Date(midnightLocal - BANGKOK_OFFSET_HOURS * HOUR_MS);
 }
 
 /** The demo account has a published password, so in production the seed needs an explicit opt-in. */
-export function demoSeedRefusal(settings: { env: string; allowDemoSeed: boolean }): string | undefined {
+export function demoSeedRefusal(settings: {
+  env: string;
+  allowDemoSeed: boolean;
+}): string | undefined {
   if (settings.env === 'production' && !settings.allowDemoSeed) {
     return 'The demo seed creates a user with a published password and is refused when NODE_ENV=production unless ALLOW_DEMO_SEED=true';
   }
@@ -126,7 +226,10 @@ export interface SeedResult {
   feedback: number;
 }
 
-export async function seedDemoData(db: Database, { email, passwordHash, now }: SeedOptions): Promise<SeedResult> {
+export async function seedDemoData(
+  db: Database,
+  { email, passwordHash, now }: SeedOptions,
+): Promise<SeedResult> {
   const today = startOfBangkokDay(now);
 
   return db.$transaction(async (tx) => {

@@ -18,7 +18,9 @@ import {
 
 const WRONG = '000000';
 
-function attemptsRemaining(body: { error: { details: { path: string; message: string }[] } }): number {
+function attemptsRemaining(body: {
+  error: { details: { path: string; message: string }[] };
+}): number {
   const detail = body.error.details.find((d) => d.path === 'attemptsRemaining');
   return Number(detail?.message);
 }
@@ -132,7 +134,11 @@ describe('POST /auth/otp/verify', () => {
 
     const warns = capture.records().filter((r) => r.level === 40);
     expect(warns).toHaveLength(1);
-    expect(warns[0]).toMatchObject({ challengeId, purpose: 'REGISTER', msg: expect.stringContaining('locked') });
+    expect(warns[0]).toMatchObject({
+      challengeId,
+      purpose: 'REGISTER',
+      msg: expect.stringContaining('locked'),
+    });
     expect(warns[0]!.userId).toEqual(expect.any(String));
   });
 
@@ -195,13 +201,15 @@ describe('POST /auth/otp/verify', () => {
   it('refuses a RESET challenge on the sign-in endpoint', async () => {
     const user = await createUser();
     const id = randomUUID();
-    await testDb.otpChallenge.create({ data: {
-      id,
-      userId: user.id,
-      purpose: 'RESET',
-      codeHash: hashOtpCode(id, OTP),
-      expiresAt: new Date(clock.now().getTime() + OTP_TTL_MS),
-    } });
+    await testDb.otpChallenge.create({
+      data: {
+        id,
+        userId: user.id,
+        purpose: 'RESET',
+        codeHash: hashOtpCode(id, OTP),
+        expiresAt: new Date(clock.now().getTime() + OTP_TTL_MS),
+      },
+    });
 
     const res = await api(app).verify({ challengeId: id, code: OTP });
 
@@ -213,13 +221,15 @@ describe('POST /auth/otp/verify', () => {
   it('also accepts a LOGIN challenge and marks an unverified account verified', async () => {
     const user = await createUser({ emailVerifiedAt: null });
     const id = randomUUID();
-    await testDb.otpChallenge.create({ data: {
-      id,
-      userId: user.id,
-      purpose: 'LOGIN',
-      codeHash: hashOtpCode(id, OTP),
-      expiresAt: new Date(clock.now().getTime() + OTP_TTL_MS),
-    } });
+    await testDb.otpChallenge.create({
+      data: {
+        id,
+        userId: user.id,
+        purpose: 'LOGIN',
+        codeHash: hashOtpCode(id, OTP),
+        expiresAt: new Date(clock.now().getTime() + OTP_TTL_MS),
+      },
+    });
 
     const res = await api(app).verify({ challengeId: id, code: OTP });
 

@@ -9,12 +9,19 @@ import { OTP, PASSWORD, sessionToken } from './helpers.js';
 /** Through the real createApp: mount point, default OTP provider from config, default bcrypt cost, origin guard. */
 describe('auth routes mounted in createApp', () => {
   const now = () => new Date();
-  const app = createApp({ db: testDb, pingDb: async () => {}, now, authenticate: createAuthenticate({ db: testDb, now }) });
+  const app = createApp({
+    db: testDb,
+    pingDb: async () => {},
+    now,
+    authenticate: createAuthenticate({ db: testDb, now }),
+  });
 
   beforeEach(resetDb);
 
   async function register(email: string) {
-    const registered = await request(app).post('/api/v1/auth/register').send({ email, password: PASSWORD });
+    const registered = await request(app)
+      .post('/api/v1/auth/register')
+      .send({ email, password: PASSWORD });
     const verified = await request(app)
       .post('/api/v1/auth/otp/verify')
       .send({ challengeId: registered.body.challengeId, code: OTP });
@@ -67,7 +74,10 @@ describe('auth routes mounted in createApp', () => {
   it('rejects a cross-site logout and login, and keeps the session alive', async () => {
     const { cookie } = await register('xsrf@example.test');
 
-    const logout = await request(app).post('/api/v1/auth/logout').set('Origin', 'https://evil.example').set('Cookie', cookie);
+    const logout = await request(app)
+      .post('/api/v1/auth/logout')
+      .set('Origin', 'https://evil.example')
+      .set('Cookie', cookie);
     const login = await request(app)
       .post('/api/v1/auth/login')
       .set('Origin', 'https://evil.example')

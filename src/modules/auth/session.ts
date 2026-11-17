@@ -26,7 +26,13 @@ export async function createSession(
   const token = randomBytes(32).toString('base64url');
   const expiresAt = new Date(now.getTime() + SESSION_ABSOLUTE_MS);
   await ex.session.create({
-    data: { tokenHash: hashSessionToken(token), userId, createdAt: now, lastSeenAt: now, expiresAt },
+    data: {
+      tokenHash: hashSessionToken(token),
+      userId,
+      createdAt: now,
+      lastSeenAt: now,
+      expiresAt,
+    },
   });
   return { token, expiresAt };
 }
@@ -42,20 +48,41 @@ export interface SessionRecord {
 export async function findSession(ex: Executor, token: string): Promise<SessionRecord | undefined> {
   const row = await ex.session.findUnique({
     where: { tokenHash: hashSessionToken(token) },
-    select: { id: true, userId: true, lastSeenAt: true, expiresAt: true, user: { select: { role: true } } },
+    select: {
+      id: true,
+      userId: true,
+      lastSeenAt: true,
+      expiresAt: true,
+      user: { select: { role: true } },
+    },
   });
   if (!row) return undefined;
-  return { id: row.id, userId: row.userId, role: row.user.role, lastSeenAt: row.lastSeenAt, expiresAt: row.expiresAt };
+  return {
+    id: row.id,
+    userId: row.userId,
+    role: row.user.role,
+    lastSeenAt: row.lastSeenAt,
+    expiresAt: row.expiresAt,
+  };
 }
 
 /** Both limits must hold: not past the absolute expiry, and not idle for 8 hours. */
-export function isSessionActive(session: Pick<SessionRecord, 'lastSeenAt' | 'expiresAt'>, now: Date): boolean {
-  return session.expiresAt.getTime() > now.getTime() && session.lastSeenAt.getTime() + SESSION_IDLE_MS > now.getTime();
+export function isSessionActive(
+  session: Pick<SessionRecord, 'lastSeenAt' | 'expiresAt'>,
+  now: Date,
+): boolean {
+  return (
+    session.expiresAt.getTime() > now.getTime() &&
+    session.lastSeenAt.getTime() + SESSION_IDLE_MS > now.getTime()
+  );
 }
 
 /** Never moves last_seen_at backwards, so two overlapping requests cannot shorten each other's refresh. */
 export async function touchSession(ex: Executor, id: string, now: Date): Promise<void> {
-  await ex.session.updateMany({ where: { id, lastSeenAt: { lt: now } }, data: { lastSeenAt: now } });
+  await ex.session.updateMany({
+    where: { id, lastSeenAt: { lt: now } },
+    data: { lastSeenAt: now },
+  });
 }
 
 /**
@@ -63,11 +90,18 @@ export async function touchSession(ex: Executor, id: string, now: Date): Promise
  * may be stale: another request can refresh last_seen_at between the read and this delete, and that session must
  * survive. Returns whether a row was removed.
  */
-export async function deleteSessionIfInactive(ex: Executor, id: string, now: Date): Promise<boolean> {
+export async function deleteSessionIfInactive(
+  ex: Executor,
+  id: string,
+  now: Date,
+): Promise<boolean> {
   const { count } = await ex.session.deleteMany({
     where: {
       id,
-      OR: [{ expiresAt: { lte: now } }, { lastSeenAt: { lte: new Date(now.getTime() - SESSION_IDLE_MS) } }],
+      OR: [
+        { expiresAt: { lte: now } },
+        { lastSeenAt: { lte: new Date(now.getTime() - SESSION_IDLE_MS) } },
+      ],
     },
   });
   return count > 0;

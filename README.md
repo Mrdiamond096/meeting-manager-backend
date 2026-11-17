@@ -113,6 +113,11 @@ Only point `TEST_DATABASE_URL` at disposable data: the name check cannot prove w
 `npm run typecheck` checks types. CI uses an isolated `meeting_test` service and runs dependency audit,
 typecheck, guarded migrations/tests, build and the production Docker image.
 
+## Code formatting
+
+Run `npm run format` to format TypeScript and `npm run format:check` to check it without edits. CI checks the
+same rules. Generated Prisma code, build output and migration files are excluded.
+
 ## Production image
 
 ```bash

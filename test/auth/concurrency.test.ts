@@ -19,7 +19,9 @@ describe('lock ordering under concurrency', () => {
 
     for (let round = 0; round < ROUNDS; round += 1) {
       const accounts = await Promise.all(
-        Array.from({ length: ACCOUNTS }, (_, n) => registerUser(server, `race-${round}-${n}@example.test`)),
+        Array.from({ length: ACCOUNTS }, (_, n) =>
+          registerUser(server, `race-${round}-${n}@example.test`),
+        ),
       );
       const settled = await Promise.all(
         accounts.map(async ({ email, challengeId }) => {
@@ -45,7 +47,9 @@ describe('lock ordering under concurrency', () => {
 
     for (let round = 0; round < ROUNDS; round += 1) {
       const accounts = await Promise.all(
-        Array.from({ length: ACCOUNTS }, (_, n) => registerUser(server, `triple-${round}-${n}@example.test`)),
+        Array.from({ length: ACCOUNTS }, (_, n) =>
+          registerUser(server, `triple-${round}-${n}@example.test`),
+        ),
       );
       const settled = await Promise.all(
         accounts.flatMap(({ email, challengeId }) => [
@@ -94,7 +98,9 @@ describe('lock ordering under concurrency', () => {
     );
 
     expect(results.map((r) => r.status)).toEqual(Array(10).fill(200));
-    const open = await testDb.otpChallenge.findMany({ where: { purpose: 'LOGIN', consumedAt: null } });
+    const open = await testDb.otpChallenge.findMany({
+      where: { purpose: 'LOGIN', consumedAt: null },
+    });
     expect(open).toHaveLength(1);
   });
 });

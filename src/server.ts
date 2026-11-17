@@ -5,7 +5,13 @@ import { createAuthenticate } from './modules/auth/authenticate.js';
 import { logger } from './observability/logger.js';
 
 const now = () => new Date();
-const server = createApp({ pingDb, db, now, authenticate: createAuthenticate({ db, now }), appVersion: config.appVersion }).listen(config.port, () => {
+const server = createApp({
+  pingDb,
+  db,
+  now,
+  authenticate: createAuthenticate({ db, now }),
+  appVersion: config.appVersion,
+}).listen(config.port, () => {
   logger.info({ port: config.port, env: config.env }, 'api listening');
 });
 

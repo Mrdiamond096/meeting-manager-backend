@@ -18,7 +18,9 @@ describe('validate helpers', () => {
   });
 
   it('instant accepts offsets and rejects date-only or offset-less values', () => {
-    expect(instant.parse('2026-11-20T10:00:00+07:00').toISOString()).toBe('2026-11-20T03:00:00.000Z');
+    expect(instant.parse('2026-11-20T10:00:00+07:00').toISOString()).toBe(
+      '2026-11-20T03:00:00.000Z',
+    );
     expect(instant.safeParse('2026-11-20').success).toBe(false);
     expect(instant.safeParse('2026-11-20T10:00:00').success).toBe(false);
   });

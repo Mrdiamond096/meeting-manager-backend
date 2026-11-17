@@ -21,7 +21,10 @@ const log = pino({ base: { service: 'seed' } }, pino.destination({ dest: 1, sync
 
 function parseSetting(name: string, schema: z.ZodType<string, string>, value: string): string {
   const parsed = schema.safeParse(value);
-  if (!parsed.success) throw new Error(`${name} is not valid: ${parsed.error.issues.map((i) => i.message).join('; ')}`);
+  if (!parsed.success)
+    throw new Error(
+      `${name} is not valid: ${parsed.error.issues.map((i) => i.message).join('; ')}`,
+    );
   return parsed.data;
 }
 
@@ -33,14 +36,22 @@ async function main() {
     return;
   }
 
-  const email = parseSetting('SEED_DEMO_EMAIL', emailSchema, process.env.SEED_DEMO_EMAIL ?? DEFAULT_DEMO_EMAIL);
+  const email = parseSetting(
+    'SEED_DEMO_EMAIL',
+    emailSchema,
+    process.env.SEED_DEMO_EMAIL ?? DEFAULT_DEMO_EMAIL,
+  );
   const password = parseSetting(
     'SEED_DEMO_PASSWORD',
     passwordSchema,
     process.env.SEED_DEMO_PASSWORD ?? DEFAULT_DEMO_PASSWORD,
   );
 
-  const result = await seedDemoData(db, { email, passwordHash: await hash(password, BCRYPT_COST), now: new Date() });
+  const result = await seedDemoData(db, {
+    email,
+    passwordHash: await hash(password, BCRYPT_COST),
+    now: new Date(),
+  });
   log.info(
     { candidates: result.candidates, meetings: result.meetings, feedback: result.feedback },
     'demo data seeded; log in as the demo user (see README)',

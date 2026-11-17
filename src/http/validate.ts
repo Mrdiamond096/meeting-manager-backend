@@ -4,7 +4,11 @@ import { AppError } from './errors.js';
 
 type Location = 'body' | 'query' | 'params';
 
-export function parse<S extends ZodType>(schema: S, value: unknown, location: Location): z.output<S> {
+export function parse<S extends ZodType>(
+  schema: S,
+  value: unknown,
+  location: Location,
+): z.output<S> {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new AppError(
@@ -19,9 +23,12 @@ export function parse<S extends ZodType>(schema: S, value: unknown, location: Lo
   return result.data;
 }
 
-export const parseBody = <S extends ZodType>(schema: S, req: Request) => parse(schema, req.body ?? {}, 'body');
-export const parseQuery = <S extends ZodType>(schema: S, req: Request) => parse(schema, req.query, 'query');
-export const parseParams = <S extends ZodType>(schema: S, req: Request) => parse(schema, req.params, 'params');
+export const parseBody = <S extends ZodType>(schema: S, req: Request) =>
+  parse(schema, req.body ?? {}, 'body');
+export const parseQuery = <S extends ZodType>(schema: S, req: Request) =>
+  parse(schema, req.query, 'query');
+export const parseParams = <S extends ZodType>(schema: S, req: Request) =>
+  parse(schema, req.params, 'params');
 
 /** RFC 3339 instant with explicit offset (Z or ±hh:mm); date-only is rejected (ADR-005). */
 export const instant = z

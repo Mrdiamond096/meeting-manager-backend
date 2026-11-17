@@ -84,7 +84,9 @@ export async function insertChallenge(
 }
 
 export async function findChallenge(ex: Executor, id: string): Promise<ChallengeRow | undefined> {
-  return ((await ex.otpChallenge.findUnique({ where: { id } })) as ChallengeRow | null) ?? undefined;
+  return (
+    ((await ex.otpChallenge.findUnique({ where: { id } })) as ChallengeRow | null) ?? undefined
+  );
 }
 
 /** Makes every open challenge of this user and purpose unusable (a new one is about to be issued). */
@@ -94,15 +96,30 @@ export async function invalidateOpenChallenges(
   purpose: OtpPurpose,
   now: Date,
 ): Promise<void> {
-  await ex.otpChallenge.updateMany({ where: { userId, purpose, consumedAt: null }, data: { consumedAt: now } });
+  await ex.otpChallenge.updateMany({
+    where: { userId, purpose, consumedAt: null },
+    data: { consumedAt: now },
+  });
 }
 
 /** Makes every open challenge of this user unusable, whatever its purpose (the password just changed). */
-export async function invalidateAllOpenChallenges(ex: Executor, userId: string, now: Date): Promise<void> {
-  await ex.otpChallenge.updateMany({ where: { userId, consumedAt: null }, data: { consumedAt: now } });
+export async function invalidateAllOpenChallenges(
+  ex: Executor,
+  userId: string,
+  now: Date,
+): Promise<void> {
+  await ex.otpChallenge.updateMany({
+    where: { userId, consumedAt: null },
+    data: { consumedAt: now },
+  });
 }
 
-export async function updatePasswordHash(ex: Executor, userId: string, passwordHash: string, now: Date): Promise<void> {
+export async function updatePasswordHash(
+  ex: Executor,
+  userId: string,
+  passwordHash: string,
+  now: Date,
+): Promise<void> {
   await ex.user.updateMany({ where: { id: userId }, data: { passwordHash, updatedAt: now } });
 }
 
@@ -120,7 +137,11 @@ export async function countChallengesSince(
  * Counts one wrong code. Returns the new attempt count, or undefined when the challenge is no longer open
  * (consumed, expired or already locked), so the counter can never pass MAX_OTP_ATTEMPTS.
  */
-export async function recordFailedAttempt(ex: Executor, id: string, now: Date): Promise<number | undefined> {
+export async function recordFailedAttempt(
+  ex: Executor,
+  id: string,
+  now: Date,
+): Promise<number | undefined> {
   const [row] = await ex.otpChallenge.updateManyAndReturn({
     where: { id, consumedAt: null, expiresAt: { gt: now }, attempts: { lt: MAX_OTP_ATTEMPTS } },
     data: { attempts: { increment: 1 } },
@@ -130,7 +151,11 @@ export async function recordFailedAttempt(ex: Executor, id: string, now: Date): 
 }
 
 /** Single-use: exactly one caller gets the row back for an open, unexpired, unlocked challenge. */
-export async function consumeChallenge(ex: Executor, id: string, now: Date): Promise<ChallengeRow | undefined> {
+export async function consumeChallenge(
+  ex: Executor,
+  id: string,
+  now: Date,
+): Promise<ChallengeRow | undefined> {
   const [row] = await ex.otpChallenge.updateManyAndReturn({
     where: { id, consumedAt: null, expiresAt: { gt: now }, attempts: { lt: MAX_OTP_ATTEMPTS } },
     data: { consumedAt: now },
@@ -139,7 +164,11 @@ export async function consumeChallenge(ex: Executor, id: string, now: Date): Pro
 }
 
 /** Like consumeChallenge but expired challenges may be replaced; locked and used ones may not. */
-export async function retireChallengeForResend(ex: Executor, id: string, now: Date): Promise<ChallengeRow | undefined> {
+export async function retireChallengeForResend(
+  ex: Executor,
+  id: string,
+  now: Date,
+): Promise<ChallengeRow | undefined> {
   const [row] = await ex.otpChallenge.updateManyAndReturn({
     where: { id, consumedAt: null, attempts: { lt: MAX_OTP_ATTEMPTS } },
     data: { consumedAt: now },

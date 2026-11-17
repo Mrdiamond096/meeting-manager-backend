@@ -5,6 +5,22 @@ const bool = z
   .enum(['true', 'false'])
   .transform((v) => v === 'true');
 
+/**
+ * A rate limit as `max/minutes`, e.g. `3/60` = 3 requests per 60 minutes. Bounded: at most 999999 requests per
+ * window and 1440 minutes (a day). The in-memory store's timer silently breaks above about 24.8 days.
+ */
+const MAX_WINDOW_MINUTES = 1440;
+const rateLimit = (fallback: string) =>
+  z
+    .string()
+    .regex(/^[1-9]\d{0,5}\/[1-9]\d{0,3}$/)
+    .refine((v) => Number(v.split('/')[1]) <= MAX_WINDOW_MINUTES)
+    .default(fallback)
+    .transform((v) => {
+      const [limit, minutes] = v.split('/').map(Number) as [number, number];
+      return { limit, windowMs: minutes * 60_000 };
+    });
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
@@ -14,6 +30,13 @@ const envSchema = z.object({
   LOG_PRETTY: bool.prefault('false'),
   APP_VERSION: z.string().default('dev'),
   RATE_LIMIT_ENABLED: bool.prefault('true'),
+  // Defaults are ADR-013.
+  RATE_LIMIT_LOGIN: rateLimit('5/15'),
+  RATE_LIMIT_REGISTER: rateLimit('3/60'),
+  RATE_LIMIT_FORGOT_PASSWORD: rateLimit('3/60'),
+  RATE_LIMIT_OTP_RESEND: rateLimit('10/15'),
+  RATE_LIMIT_PASSWORD_RESET: rateLimit('10/15'),
+  RATE_LIMIT_WRITE: rateLimit('60/1'),
   COOKIE_SECURE: bool.prefault('false'),
   ALLOWED_ORIGINS: z
     .string()
@@ -62,6 +85,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     logPretty: e.LOG_PRETTY,
     appVersion: e.APP_VERSION,
     rateLimitEnabled: e.RATE_LIMIT_ENABLED,
+    rateLimits: {
+      login: e.RATE_LIMIT_LOGIN,
+      register: e.RATE_LIMIT_REGISTER,
+      forgotPassword: e.RATE_LIMIT_FORGOT_PASSWORD,
+      otpResend: e.RATE_LIMIT_OTP_RESEND,
+      passwordReset: e.RATE_LIMIT_PASSWORD_RESET,
+      write: e.RATE_LIMIT_WRITE,
+    },
     cookieSecure: e.COOKIE_SECURE,
     allowedOrigins: e.ALLOWED_ORIGINS,
     allowDemoSeed: e.ALLOW_DEMO_SEED,

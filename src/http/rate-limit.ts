@@ -28,23 +28,18 @@ export const byIpAndEmail = (req: Request) => {
   return `${byIp(req)}|${email}`;
 };
 
-const UUID = /^[0-9a-f-]{36}$/i;
-
-/** Only uuid-shaped ids become keys, so arbitrary bodies cannot grow the in-memory store. */
-export const byChallenge = (req: Request) => {
-  const id: unknown = req.body?.challengeId;
-  return typeof id === 'string' && UUID.test(id) ? `challenge|${id}` : byIp(req);
-};
-
 export const byUser = (req: Request) => req.user?.id ?? byIp(req);
 
-const MINUTE = 60_000;
+const limits = config.rateLimits;
 
-/** Limits from ADR-013. OTP attempts are enforced per challenge in the auth module, not here. */
+/** Values come from RATE_LIMIT_* (see config.ts; defaults are ADR-013). OTP attempts are capped per challenge in the auth module. */
 export const rateLimits = {
-  login: () => createRateLimiter({ windowMs: 15 * MINUTE, limit: 5, key: byIpAndEmail }),
-  register: () => createRateLimiter({ windowMs: 60 * MINUTE, limit: 3, key: byIp }),
-  forgotPassword: () => createRateLimiter({ windowMs: 60 * MINUTE, limit: 3, key: byIpAndEmail }),
-  otpResend: () => createRateLimiter({ windowMs: 15 * MINUTE, limit: 3, key: byChallenge }),
-  write: () => createRateLimiter({ windowMs: MINUTE, limit: 60, key: byUser }),
+  login: () => createRateLimiter({ ...limits.login, key: byIpAndEmail }),
+  register: () => createRateLimiter({ ...limits.register, key: byIp }),
+  forgotPassword: () => createRateLimiter({ ...limits.forgotPassword, key: byIpAndEmail }),
+  // By IP: a per-challenge key would restart on every resend, because each resend issues a new challenge.
+  otpResend: () => createRateLimiter({ ...limits.otpResend, key: byIp }),
+  // Each successful reset costs a bcrypt hash; the per-challenge attempt cap does not cover that.
+  passwordReset: () => createRateLimiter({ ...limits.passwordReset, key: byIp }),
+  write: () => createRateLimiter({ ...limits.write, key: byUser }),
 };

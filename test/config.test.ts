@@ -76,3 +76,29 @@ describe('loadConfig', () => {
     }
   });
 });
+
+describe('rate limits', () => {
+  it('default to ADR-013', () => {
+    const { rateLimits } = loadConfig({});
+    expect(rateLimits).toEqual({
+      login: { limit: 5, windowMs: 15 * 60_000 },
+      register: { limit: 3, windowMs: 60 * 60_000 },
+      forgotPassword: { limit: 3, windowMs: 60 * 60_000 },
+      otpResend: { limit: 10, windowMs: 15 * 60_000 },
+      passwordReset: { limit: 10, windowMs: 15 * 60_000 },
+      write: { limit: 60, windowMs: 60_000 },
+    });
+  });
+
+  it('accept the bounds', () => {
+    expect(loadConfig({ RATE_LIMIT_LOGIN: '999999/1440' }).rateLimits.login).toEqual({ limit: 999_999, windowMs: 1440 * 60_000 });
+  });
+
+  it('take max/minutes from RATE_LIMIT_*', () => {
+    expect(loadConfig({ RATE_LIMIT_REGISTER: '100/60' }).rateLimits.register).toEqual({ limit: 100, windowMs: 60 * 60_000 });
+  });
+
+  it.each(['3', '3/0', '0/60', '-1/60', '3/60m', 'abc', '1/1441', '1/43200', '1000001/60', `${'9'.repeat(400)}/60`])('reject %s', (value) => {
+    expect(() => loadConfig({ RATE_LIMIT_LOGIN: value })).toThrow(ConfigError);
+  });
+});

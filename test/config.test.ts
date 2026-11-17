@@ -90,11 +90,15 @@ describe('rate limits', () => {
     });
   });
 
+  it('accept the bounds', () => {
+    expect(loadConfig({ RATE_LIMIT_LOGIN: '999999/1440' }).rateLimits.login).toEqual({ limit: 999_999, windowMs: 1440 * 60_000 });
+  });
+
   it('take max/minutes from RATE_LIMIT_*', () => {
     expect(loadConfig({ RATE_LIMIT_REGISTER: '100/60' }).rateLimits.register).toEqual({ limit: 100, windowMs: 60 * 60_000 });
   });
 
-  it.each(['3', '3/0', '0/60', '-1/60', '3/60m', 'abc'])('reject %s', (value) => {
+  it.each(['3', '3/0', '0/60', '-1/60', '3/60m', 'abc', '1/1441', '1/43200', '1000001/60', `${'9'.repeat(400)}/60`])('reject %s', (value) => {
     expect(() => loadConfig({ RATE_LIMIT_LOGIN: value })).toThrow(ConfigError);
   });
 });

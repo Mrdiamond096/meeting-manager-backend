@@ -5,11 +5,16 @@ const bool = z
   .enum(['true', 'false'])
   .transform((v) => v === 'true');
 
-/** A rate limit as `max/minutes`, e.g. `3/60` = 3 requests per 60 minutes. */
+/**
+ * A rate limit as `max/minutes`, e.g. `3/60` = 3 requests per 60 minutes. Bounded: at most 999999 requests per
+ * window and 1440 minutes (a day). The in-memory store's timer silently breaks above about 24.8 days.
+ */
+const MAX_WINDOW_MINUTES = 1440;
 const rateLimit = (fallback: string) =>
   z
     .string()
-    .regex(/^[1-9]\d*\/[1-9]\d*$/)
+    .regex(/^[1-9]\d{0,5}\/[1-9]\d{0,3}$/)
+    .refine((v) => Number(v.split('/')[1]) <= MAX_WINDOW_MINUTES)
     .default(fallback)
     .transform((v) => {
       const [limit, minutes] = v.split('/').map(Number) as [number, number];

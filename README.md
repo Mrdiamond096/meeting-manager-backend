@@ -69,7 +69,7 @@ value) and exits 1. Docker Compose reads `.env.example`.
 | `LOG_PRETTY` | `false` | Human-readable logs for local dev; keep JSON in production |
 | `APP_VERSION` | `dev` | Returned by `/api/health/live` |
 | `RATE_LIMIT_ENABLED` | `true` | Turns every limit below on or off. Keep `true` in production |
-| `RATE_LIMIT_LOGIN` | `5/15` | Each limit is `max/minutes`. Per IP + email |
+| `RATE_LIMIT_LOGIN` | `5/15` | Each limit is `max/minutes`: max up to 999999, minutes up to 1440. Per IP + email |
 | `RATE_LIMIT_REGISTER` | `3/60` | Per IP |
 | `RATE_LIMIT_FORGOT_PASSWORD` | `3/60` | Per IP + email |
 | `RATE_LIMIT_OTP_RESEND` | `10/15` | Per IP |

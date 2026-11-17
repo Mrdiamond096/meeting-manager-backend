@@ -39,7 +39,7 @@ describe('session authentication and GET /auth/me', () => {
     const res = await api(app).me(cookie);
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ user: { id: userId, email, role: 'USER' } });
+    expect(res.body).toEqual({ user: { id: userId, email, role: 'RECRUITER' } });
     expect(res.headers['cache-control']).toBe('no-store');
   });
 

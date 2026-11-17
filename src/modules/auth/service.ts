@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Logger } from 'pino';
+import type { SELF_SERVICE_ROLES } from '../../db/constants.js';
 import { AppError } from '../../http/errors.js';
 import type { ModuleDeps } from '../deps.js';
 import { hashOtpCode, otpCodeMatches } from './otp-code.js';
@@ -30,7 +31,11 @@ export const MAX_RESETS_PER_WINDOW = 5;
 export interface AuthServiceDeps extends ModuleDeps {
   otp: OtpProvider;
   hasher: PasswordHasher;
+  /** Normalized emails that register as ADMIN (ADR-015). */
+  adminEmails?: readonly string[];
 }
+
+type SelfServiceRole = (typeof SELF_SERVICE_ROLES)[number];
 
 export interface IssuedChallenge {
   challengeId: string;
@@ -49,7 +54,7 @@ function otpInvalid(attemptsRemaining: number): AppError {
   ]);
 }
 
-export function createAuthService({ db, now, otp, hasher }: AuthServiceDeps) {
+export function createAuthService({ db, now, otp, hasher, adminEmails = [] }: AuthServiceDeps) {
   /** Stores a new challenge. The caller delivers the returned code after the surrounding transaction commits. */
   async function issueChallenge(
     ex: Executor,
@@ -73,7 +78,11 @@ export function createAuthService({ db, now, otp, hasher }: AuthServiceDeps) {
 
   return {
     /** Creates the account (or replaces the password of an unverified one) and issues a REGISTER challenge. */
-    async register(input: { email: string; password: string }): Promise<IssuedChallenge> {
+    async register(input: {
+      email: string;
+      password: string;
+      role: SelfServiceRole;
+    }): Promise<IssuedChallenge> {
       const at = now();
       // Hash first so a taken email costs the same time as a free one.
       const passwordHash = await hasher.hash(input.password);
@@ -82,6 +91,7 @@ export function createAuthService({ db, now, otp, hasher }: AuthServiceDeps) {
         const user = await repo.upsertUnverifiedUser(tx, {
           email: input.email,
           passwordHash,
+          role: adminEmails.includes(input.email) ? 'ADMIN' : input.role,
           now: at,
         });
         if (!user) throw new AppError('EMAIL_TAKEN');

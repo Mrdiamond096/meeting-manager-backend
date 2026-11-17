@@ -27,6 +27,8 @@ export interface AuthRouterOptions {
   passwordHasher?: PasswordHasher;
   /** Defaults to COOKIE_SECURE. */
   cookieSecure?: boolean;
+  /** Defaults to ADMIN_EMAILS. */
+  adminEmails?: readonly string[];
 }
 
 const challengeDto = ({ challengeId, expiresAt }: IssuedChallenge) => ({
@@ -45,6 +47,7 @@ export function authRouter(deps: ModuleDeps, options: AuthRouterOptions = {}): R
     ...deps,
     otp: options.otpProvider ?? createOtpProvider(config.otp),
     hasher: options.passwordHasher ?? createPasswordHasher(options.bcryptCost),
+    adminEmails: options.adminEmails ?? config.adminEmails,
   });
   const cookieSecure = options.cookieSecure ?? config.cookieSecure;
   const router = Router({ mergeParams: true });

@@ -16,14 +16,14 @@ export const MAX_OTP_ATTEMPTS = 5;
  */
 export async function upsertUnverifiedUser(
   ex: Executor,
-  input: { email: string; passwordHash: string; now: Date },
+  input: { email: string; passwordHash: string; role: string; now: Date },
 ): Promise<UserRow | undefined> {
   // Prisma's upsert cannot carry the `where email_verified_at is null` guard, so this stays one raw statement.
   const [row] = await ex.$queryRaw<UserRow[]>`
-    insert into users (email, password_hash, created_at, updated_at)
-    values (${input.email}, ${input.passwordHash}, ${input.now}, ${input.now})
+    insert into users (email, password_hash, role, created_at, updated_at)
+    values (${input.email}, ${input.passwordHash}, ${input.role}, ${input.now}, ${input.now})
     on conflict (email) do update
-      set password_hash = excluded.password_hash, updated_at = ${input.now}
+      set password_hash = excluded.password_hash, role = excluded.role, updated_at = ${input.now}
       where users.email_verified_at is null
     returning id, email, password_hash as "passwordHash", role, email_verified_at as "emailVerifiedAt",
       created_at as "createdAt", updated_at as "updatedAt"`;

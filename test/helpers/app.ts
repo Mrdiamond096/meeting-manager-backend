@@ -32,8 +32,11 @@ export function createTestApp(options: TestAppOptions = {}): Express {
 }
 
 /** Creates a real user row and an app authenticated as that user (stubbed session, no cookie/OTP). */
-export async function loginAs(options: Omit<TestAppOptions, 'user'> = {}) {
-  const row = await createUser();
+export async function loginAs({
+  role,
+  ...options
+}: Omit<TestAppOptions, 'user'> & { role?: AuthUser['role'] } = {}) {
+  const row = await createUser(role ? { role } : {});
   const user: AuthUser = { id: row.id, role: row.role as AuthUser['role'] };
   return { app: createTestApp({ ...options, user }), user };
 }

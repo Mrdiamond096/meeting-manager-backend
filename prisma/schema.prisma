@@ -16,7 +16,7 @@ model User {
   /// Stored normalized: trimmed + lowercase.
   email           String    @unique(map: "users_email_unique") @db.VarChar(254)
   passwordHash    String    @map("password_hash") @db.VarChar(100)
-  role            String    @default("USER") @db.VarChar(16)
+  role            String    @default("RECRUITER") @db.VarChar(16)
   emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz(6)
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)

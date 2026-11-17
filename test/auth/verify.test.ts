@@ -37,7 +37,7 @@ describe('POST /auth/otp/verify', () => {
     const res = await api(app).verify({ challengeId, code: OTP });
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ user: { id: expect.any(String), email, role: 'USER' } });
+    expect(res.body).toEqual({ user: { id: expect.any(String), email, role: 'RECRUITER' } });
     const [user] = await testDb.user.findMany();
     expect(user!.emailVerifiedAt).toEqual(clock.now());
     const [challenge] = await testDb.otpChallenge.findMany();

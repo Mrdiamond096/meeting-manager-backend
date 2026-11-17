@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { CANDIDATE_POSITIONS } from '../../db/constants.js';
+import { requireRole } from '../../http/auth-guard.js';
 import { idParams, parseBody, parseParams, parseQuery } from '../../http/validate.js';
 import type { ModuleDeps } from '../deps.js';
 import { createSchema, emptyQuery, searchQuery } from './schemas.js';
@@ -19,7 +20,7 @@ export function candidatesRouter(deps: ModuleDeps): Router {
     parseQuery(emptyQuery, req);
     res.json(await service.get(parseParams(idParams, req).id, req.user!.id));
   });
-  router.post('/', async (req, res) => {
+  router.post('/', requireRole('ADMIN', 'RECRUITER'), async (req, res) => {
     parseQuery(emptyQuery, req);
     res.status(201).json(await service.create(parseBody(createSchema, req), req.user!.id));
   });

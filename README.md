@@ -47,7 +47,8 @@ are left alone.
 
 | | |
 |---|---|
-| Email | `demo@example.com` (override: `SEED_DEMO_EMAIL`) |
+| Email | `demo@example.com` (override: `SEED_DEMO_EMAIL`), role `ADMIN` |
+| Interviewer | `interviewer@example.com`, same password, role `INTERVIEWER` (read-only + feedback) |
 | Password | `demo-password-123` (override: `SEED_DEMO_PASSWORD`) |
 | OTP | `112233`: the mock provider accepts this fixed code (`OTP_MOCK_CODE`) |
 
@@ -76,6 +77,7 @@ value) and exits 1. Docker Compose reads `.env.example`.
 | `RATE_LIMIT_PASSWORD_RESET` | `10/15` | Per IP |
 | `RATE_LIMIT_WRITE` | `60/1` | Creates, updates and deletes, per user |
 | `COOKIE_SECURE` | `false` | **Production: `true`** (HTTPS only session cookie) |
+| `ADMIN_EMAILS` | _(empty)_ | Comma-separated emails that register as `ADMIN` (ADR-015). Everyone else picks `RECRUITER` or `INTERVIEWER` at sign-up |
 | `ALLOWED_ORIGINS` | `http://localhost:8080,http://localhost:3001` | Comma-separated origins allowed to send state-changing requests. **Production: the real web origin** |
 | `OTP_PROVIDER` | `mock` | Only `mock` exists. The API refuses to start with it when `NODE_ENV=production`… |
 | `ALLOW_MOCK_OTP` | `false` | …unless this is `true`. Only for running the prod image locally (umbrella compose), never in a real deployment |

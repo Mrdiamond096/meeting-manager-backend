@@ -45,6 +45,16 @@ const envSchema = z.object({
         .map((o) => o.trim())
         .filter(Boolean),
     ),
+  /** Accounts registered with these emails become ADMIN (ADR-015); comma-separated, matched lowercase. */
+  ADMIN_EMAILS: z
+    .string()
+    .default('')
+    .transform((v) =>
+      v
+        .split(',')
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean),
+    ),
   OTP_PROVIDER: z.enum(['mock']).default('mock'),
   /** Explicit opt-in for the local Docker demo, which runs the production image. */
   ALLOW_MOCK_OTP: bool.prefault('false'),
@@ -101,6 +111,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     },
     cookieSecure: e.COOKIE_SECURE,
     allowedOrigins: e.ALLOWED_ORIGINS,
+    adminEmails: e.ADMIN_EMAILS,
     allowDemoSeed: e.ALLOW_DEMO_SEED,
     otp: {
       provider: e.OTP_PROVIDER,

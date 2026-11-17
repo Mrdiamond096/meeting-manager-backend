@@ -105,14 +105,14 @@ describe('db:seed entry point', () => {
     const second = seedCli(env);
     expect(second.status).toBe(0);
     expect(await counts()).toEqual(afterFirst);
-    expect(afterFirst).toEqual({ users: 1, candidates: 8, meetings: 14, feedback: 4 });
+    expect(afterFirst).toEqual({ users: 2, candidates: 8, meetings: 14, feedback: 4 });
     expect(await titles()).toEqual(titlesAfterFirst);
   });
 
   it('runs without the opt-in outside production', async () => {
     const run = seedCli({ NODE_ENV: 'development' });
     expect(run.status).toBe(0);
-    expect(await counts()).toEqual({ users: 1, candidates: 8, meetings: 14, feedback: 4 });
+    expect(await counts()).toEqual({ users: 2, candidates: 8, meetings: 14, feedback: 4 });
   });
 
   it('reports a bad override as one JSON error line and exits 1', async () => {

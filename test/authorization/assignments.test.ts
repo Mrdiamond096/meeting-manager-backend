@@ -267,16 +267,31 @@ describe('interviewer directory', () => {
     const a = await createUser({ role: 'INTERVIEWER', email: 'person%tag@example.test' });
     await createUser({ role: 'INTERVIEWER', email: 'other@example.test' });
     await createUser({ role: 'INTERVIEWER', emailVerifiedAt: null });
-    const response = await request(app).get('/api/v1/interviewers');
+    const response = await request(app).post('/api/v1/interviewers/search').send({});
     expect(response.status).toBe(200);
     expect(response.body.items).toHaveLength(2);
     expect(
       response.body.items.every((p: object) => Object.keys(p).sort().join(',') === 'email,id'),
     ).toBe(true);
     expect(
-      (await request(app).get('/api/v1/interviewers').query({ query: '%' })).body.items,
+      (await request(app).post('/api/v1/interviewers/search').send({ query: '%' })).body.items,
     ).toEqual([{ id: a.id, email: a.email }]);
-    expect((await request(asUser(a)).get('/api/v1/interviewers')).status).toBe(403);
-    expect((await request(app).get('/api/v1/interviewers').query({ extra: 'x' })).status).toBe(400);
+    expect((await request(asUser(a)).post('/api/v1/interviewers/search').send({})).status).toBe(
+      403,
+    );
+    expect(
+      (await request(app).post('/api/v1/interviewers/search').send({ extra: 'x' })).status,
+    ).toBe(400);
+    expect(
+      (await request(app).post('/api/v1/interviewers/search').query({ query: a.email }).send({}))
+        .status,
+    ).toBe(400);
+    expect(
+      (
+        await request(app)
+          .post('/api/v1/interviewers/search')
+          .send({ query: 'x'.repeat(255) })
+      ).status,
+    ).toBe(400);
   });
 });

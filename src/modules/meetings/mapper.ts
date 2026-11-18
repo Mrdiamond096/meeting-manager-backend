@@ -1,6 +1,6 @@
 import type { MeetingRow } from './repository.js';
 
-export function toMeeting({ meeting: m, candidate: c }: MeetingRow, userId: string) {
+export function toMeeting({ meeting: m, candidate: c, interviewers }: MeetingRow, userId: string) {
   return {
     id: m.id,
     title: m.title,
@@ -13,6 +13,7 @@ export function toMeeting({ meeting: m, candidate: c }: MeetingRow, userId: stri
     candidate: c
       ? { id: c.id, name: c.name, position: c.position, createdAt: c.createdAt.toISOString() }
       : null,
+    interviewers,
     createdById: m.createdBy,
     isMine: m.createdBy === userId,
     version: m.version,

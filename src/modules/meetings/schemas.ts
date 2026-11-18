@@ -10,6 +10,10 @@ import { digits, instant, pagination } from '../../http/validate.js';
 const positiveVersion = z.number().int().positive().safe();
 const uuid = z.string().uuid();
 const text = z.string().trim();
+const interviewerIds = z
+  .array(uuid)
+  .max(50)
+  .refine((ids) => new Set(ids).size === ids.length, 'Interviewers must be unique');
 export const emptyQuery = z.object({}).strict();
 const fields = {
   title: text.min(1).max(150),
@@ -20,6 +24,7 @@ const fields = {
   meetingType: z.enum(MEETING_TYPES).nullable().optional(),
   provider: z.enum(MEETING_PROVIDERS).nullable().optional(),
   candidateId: uuid.nullable().optional(),
+  interviewerIds: interviewerIds.optional(),
 };
 const inlineCandidate = z
   .object({ name: text.min(1).max(120), position: z.enum(CANDIDATE_POSITIONS) })
@@ -49,6 +54,7 @@ export const patchSchema = z
     meetingType: fields.meetingType,
     provider: fields.provider,
     candidateId: fields.candidateId,
+    interviewerIds: fields.interviewerIds,
     candidate: inlineCandidate.optional(),
     version: positiveVersion,
   })
@@ -69,6 +75,10 @@ const filters = {
   status: z.enum(MEETING_STATUSES).optional(),
   from: instant.optional(),
   to: instant.optional(),
+  assignedToMe: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
   mine: z
     .enum(['true', 'false'])
     .default('false')

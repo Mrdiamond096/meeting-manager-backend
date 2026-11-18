@@ -151,6 +151,7 @@ describe('candidates', () => {
       'Cancelled past',
     ]);
     expect(res.body.upcoming[0]).toEqual({
+      interviewers: [],
       id: rows[0]!.id,
       title: 'At boundary',
       description: '',

@@ -26,19 +26,19 @@ export function meetingService(deps: ModuleDeps) {
   const checkVersion = (actual: number, expected: number) => {
     if (actual !== expected) throw new AppError('VERSION_CONFLICT');
   };
-  const written = async (
-    meeting: NonNullable<Awaited<ReturnType<typeof repo.update>>>,
-    userId: string,
-  ) =>
-    toMeeting(
-      {
-        meeting,
-        candidate: meeting.candidateId
-          ? ((await repo.candidate(meeting.candidateId)) ?? null)
-          : null,
-      },
-      userId,
-    );
+  const requireManage = (row: Awaited<ReturnType<typeof requireMeeting>>, user: AuthUser) => {
+    if (user.role === 'INTERVIEWER' && !row.interviewers.some((person) => person.id === user.id))
+      throw new AppError('FORBIDDEN');
+  };
+  const validateInterviewers = async (
+    repository: ReturnType<typeof meetingRepository>,
+    ids: string[],
+  ) => {
+    if ((await repository.eligibleInterviewers(ids)).length !== ids.length)
+      throw new AppError('VALIDATION_ERROR', undefined, [
+        { path: 'body.interviewerIds', message: 'Choose verified interviewer accounts' },
+      ]);
+  };
   const validateState = (m: {
     dueDate: Date;
     endAt?: Date | null;
@@ -91,7 +91,8 @@ export function meetingService(deps: ModuleDeps) {
       validateState(input);
       return deps.db.$transaction(async (tx) => {
         const transactional = meetingRepository(tx);
-        const { candidate, ...values } = input;
+        const { candidate, interviewerIds = [], ...values } = input;
+        await validateInterviewers(transactional, interviewerIds);
         let candidateId = input.candidateId;
         if (candidateId && !(await transactional.candidate(candidateId)))
           throw new AppError('NOT_FOUND');
@@ -111,51 +112,65 @@ export function meetingService(deps: ModuleDeps) {
           createdAt: now,
           updatedAt: now,
         });
+        await transactional.replaceInterviewers(created.id, interviewerIds, now);
         return toMeeting((await transactional.find(created.id))!, userId);
       });
     },
-    async patch(id: string, input: PatchMeeting, userId: string) {
-      const { meeting } = await requireMeeting(id);
+    async patch(id: string, input: PatchMeeting, user: AuthUser) {
+      const current = await requireMeeting(id);
+      requireManage(current, user);
+      if (user.role === 'INTERVIEWER' && input.interviewerIds !== undefined)
+        throw new AppError('FORBIDDEN');
+      const { meeting } = current;
       checkVersion(meeting.version, input.version);
-      const { version, candidate, ...changes } = input;
+      const { version, candidate, interviewerIds, ...changes } = input;
       if (meeting.status === 'CANCELLED' && changes.status === 'CONFIRMED')
         throw new AppError('INVALID_TRANSITION');
       validateState({ ...meeting, ...changes });
-      if (candidate) {
-        // The new candidate and the edit commit together: a stale version or any failure leaves no candidate behind.
-        return deps.db.$transaction(async (tx) => {
-          const transactional = meetingRepository(tx);
-          const created = await transactional.insertCandidate({
-            ...candidate,
-            createdBy: userId,
-            createdAt: deps.now(),
-          });
-          const done = await transactional.update(id, version, {
-            ...changes,
-            candidateId: created.id,
-            updatedAt: deps.now(),
-          });
-          if (!done) return stale(id); // throws, which rolls the candidate back
-          return toMeeting((await transactional.find(id))!, userId);
+      return deps.db.$transaction(async (tx) => {
+        const transactional = meetingRepository(tx);
+        if (interviewerIds !== undefined) await validateInterviewers(transactional, interviewerIds);
+        if (changes.candidateId && !(await transactional.candidate(changes.candidateId)))
+          throw new AppError('NOT_FOUND');
+        const candidateId = candidate
+          ? (
+              await transactional.insertCandidate({
+                ...candidate,
+                createdBy: user.id,
+                createdAt: deps.now(),
+              })
+            ).id
+          : changes.candidateId;
+        const updated = await transactional.update(id, version, {
+          ...changes,
+          ...(candidateId !== undefined ? { candidateId } : {}),
+          updatedAt: deps.now(),
         });
-      }
-      if (changes.candidateId && !(await repo.candidate(changes.candidateId)))
-        throw new AppError('NOT_FOUND');
-      const updated = await repo.update(id, version, { ...changes, updatedAt: deps.now() });
-      return updated ? written(updated, userId) : stale(id);
+        if (!updated) return stale(id);
+        if (interviewerIds !== undefined)
+          await transactional.replaceInterviewers(id, interviewerIds, deps.now());
+        return toMeeting((await transactional.find(id))!, user.id);
+      });
     },
-    async cancel(id: string, version: number, userId: string) {
-      const { meeting } = await requireMeeting(id);
+    async cancel(id: string, version: number, user: AuthUser) {
+      const current = await requireMeeting(id);
+      requireManage(current, user);
+      const { meeting } = current;
       checkVersion(meeting.version, version);
       if (meeting.status === 'CANCELLED') throw new AppError('INVALID_TRANSITION');
-      const updated = await repo.update(id, version, {
-        status: 'CANCELLED',
-        updatedAt: deps.now(),
+      return deps.db.$transaction(async (tx) => {
+        const transactional = meetingRepository(tx);
+        const updated = await transactional.update(id, version, {
+          status: 'CANCELLED',
+          updatedAt: deps.now(),
+        });
+        if (!updated) return stale(id);
+        return toMeeting((await transactional.find(id))!, user.id);
       });
-      return updated ? written(updated, userId) : stale(id);
     },
     /** Recruiters cover each other's meetings but delete only their own; admins delete any (ADR-015). */
     async remove(id: string, version: number, user: AuthUser) {
+      if (user.role === 'INTERVIEWER') throw new AppError('FORBIDDEN');
       if (user.role !== 'ADMIN') {
         const meeting = await requireMeeting(id);
         if (meeting.meeting.createdBy !== user.id) throw new AppError('FORBIDDEN');

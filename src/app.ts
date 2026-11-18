@@ -9,6 +9,7 @@ import { createRateLimits, type RateLimitConfig } from './http/rate-limit.js';
 import { authRouter } from './modules/auth/router.js';
 import { candidatesRouter } from './modules/candidates/router.js';
 import { feedbackRouter } from './modules/feedback/router.js';
+import { interviewersRouter } from './modules/interviewers/router.js';
 import { meetingsRouter } from './modules/meetings/router.js';
 import { httpLogger } from './observability/http-logger.js';
 import { healthRouter } from './routes/health.js';
@@ -49,6 +50,7 @@ export function createApp(deps: AppDeps): Express {
     req.method === 'GET' ? next() : limitWrites(req, res, next);
   v1.use('/meetings/:id/feedback', requireAuth, writes, feedbackRouter(moduleDeps));
   v1.use('/meetings', requireAuth, writes, meetingsRouter(moduleDeps));
+  v1.use('/interviewers', requireAuth, interviewersRouter(moduleDeps));
   v1.use('/candidates', requireAuth, writes, candidatesRouter(moduleDeps));
   app.use('/api/v1', v1);
 

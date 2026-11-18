@@ -18,6 +18,7 @@ describe('meetings CRUD', () => {
     expect(res.status).toBe(201);
     expect(res.headers.location).toBe(`${root}/${res.body.id}`);
     expect(res.body).toEqual({
+      interviewers: [],
       id: expect.any(String),
       title: 'Interview',
       description: '',
@@ -296,7 +297,7 @@ describe('meetings CRUD', () => {
             title: 'x'.repeat(151),
             candidate: { name: 'Must roll back', position: 'Software Engineer' },
           },
-          user.id,
+          { id: user.id, role: 'RECRUITER' },
         ),
       ).rejects.toThrow();
       expect(await testDb.candidate.findMany()).toEqual([]);

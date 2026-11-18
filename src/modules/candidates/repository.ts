@@ -1,4 +1,5 @@
 import type { Executor } from '../../db/client.js';
+import { meetingInclude } from '../meetings/repository.js';
 import type { Prisma } from '../../generated/prisma/client.js';
 
 export function candidateRepository(db: Executor) {
@@ -14,11 +15,13 @@ export function candidateRepository(db: Executor) {
     create: (data: Prisma.CandidateUncheckedCreateInput) => db.candidate.create({ data }),
     upcoming: (id: string, now: Date) =>
       db.meeting.findMany({
+        include: meetingInclude,
         where: { candidateId: id, dueDate: { gte: now }, status: { not: 'CANCELLED' } },
         orderBy: [{ dueDate: 'asc' }, { id: 'asc' }],
       }),
     history: (id: string, now: Date) =>
       db.meeting.findMany({
+        include: meetingInclude,
         where: { candidateId: id, OR: [{ dueDate: { lt: now } }, { status: 'CANCELLED' }] },
         orderBy: [{ dueDate: 'desc' }, { id: 'desc' }],
       }),

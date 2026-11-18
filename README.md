@@ -150,3 +150,11 @@ Run `npm run audit:ci` to check production dependencies with no exceptions, then
 `audit-ci`. The sole dev-tool exception is recorded in `audit-ci.json` with a reason and expires at the end of
 2026-12-31 (UTC). High/critical findings outside that exception, production findings and audit failures block CI.
 Run `npm run test:audit` to verify the policy against clean, expired, unlisted, production and failed-audit fixtures.
+
+## Interviewer assignments
+
+Recruiters/admins assign multiple verified interviewers when creating or editing a meeting. Assigned
+interviewers may edit or cancel that meeting, but cannot create/delete meetings or change its assignments.
+Reading and feedback remain team-wide. Creator ownership (`createdById`, `isMine`, `mine`) is unchanged;
+`assignedToMe=true` filters assignments separately. Existing meetings start unassigned after migration.
+See the API contract for the interviewer directory, payloads, limits and transaction behavior.

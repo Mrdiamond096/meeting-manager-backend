@@ -128,11 +128,12 @@ and do not transfer creation/deletion ownership. Existing meetings start unassig
 assignment based on creator or feedback. Interviewers may change meeting fields (including the candidate link
 or inline candidate) when assigned, but may never change `interviewerIds` or delete the meeting.
 
-### `GET /interviewers`
-ADMIN / RECRUITER only; INTERVIEWER → 403. Query: `query` (optional, trimmed email substring, ≤254 chars).
+### `POST /interviewers/search`
+ADMIN / RECRUITER only; INTERVIEWER → 403. JSON body: `{ query?: string }` (trimmed email substring, ≤254 chars).
 Returns 200 `{ items: AssignedInterviewer[] }`, at most 50 verified INTERVIEWER accounts ordered by email then id.
 Empty search returns the first 50; search refines the result when the team is larger. No password, session or OTP
-fields are returned. Unknown query keys → 400.
+fields are returned. Unknown body/query keys → 400. Search is read-only; POST keeps email search text out of URLs
+and access logs. Standard same-origin checks apply; this lookup does not consume the meeting write quota.
 
 ### Assignment fields on meeting writes
 `POST /meetings` and `PATCH /meetings/:id` accept optional `interviewerIds: string[]`: unique UUIDs, at most 50,

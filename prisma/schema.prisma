@@ -21,11 +21,12 @@ model User {
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  sessions      Session[]
-  otpChallenges OtpChallenge[]
-  candidates    Candidate[]
-  meetings      Meeting[]
-  feedback      Feedback[]
+  sessions             Session[]
+  otpChallenges        OtpChallenge[]
+  candidates           Candidate[]
+  meetings             Meeting[]
+  feedback             Feedback[]
+  interviewAssignments MeetingInterviewer[]
 
   @@map("users")
 }
@@ -92,9 +93,10 @@ model Meeting {
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  candidate Candidate? @relation(fields: [candidateId], references: [id], onDelete: Restrict)
-  creator   User?      @relation(fields: [createdBy], references: [id], onDelete: SetNull)
-  feedback  Feedback[]
+  candidate    Candidate?           @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  creator      User?                @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  feedback     Feedback[]
+  interviewers MeetingInterviewer[]
 
   @@index([dueDate, id], map: "meetings_due_date_id_idx")
   @@index([candidateId, dueDate, id], map: "meetings_candidate_due_date_idx")
@@ -115,4 +117,18 @@ model Feedback {
 
   @@index([meetingId, createdAt], map: "feedback_meeting_created_at_idx")
   @@map("feedback")
+}
+
+/// Assignment is separate from the immutable meeting creator; several interviewers may share a meeting.
+model MeetingInterviewer {
+  meetingId  String   @map("meeting_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  assignedAt DateTime @default(now()) @map("assigned_at") @db.Timestamptz(6)
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([meetingId, userId], map: "meeting_interviewers_pkey")
+  @@index([userId, meetingId], map: "meeting_interviewers_user_meeting_idx")
+  @@map("meeting_interviewers")
 }

@@ -71,6 +71,7 @@ interface Meeting {
   meetingType: MeetingType | null;
   provider: Provider | null;     // null unless meetingType = ONLINE
   candidate: CandidateSummary | null;
+  interviewers: AssignedInterviewer[]; // always present; empty when unassigned
   createdById: string | null;
   isMine: boolean;               // createdById === current user
   version: number;               // starts at 1, +1 on every write
@@ -79,6 +80,8 @@ interface Meeting {
 }
 
 interface Feedback { id: string; meetingId: string; body: string; createdById: string | null; createdAt: string }
+
+interface AssignedInterviewer { id: string; email: string }
 
 interface User { id: string; email: string; role: 'ADMIN' | 'RECRUITER' | 'INTERVIEWER' }
 
@@ -106,24 +109,46 @@ Reset challenges cannot be resent (`/auth/otp/resend` answers `OTP_INVALID`, lik
 
 Rules: email trimmed + lowercased, ≤ 254 chars · password 8–72 bytes, no composition rules · register with an existing **unverified** email replaces its password and issues a new challenge · login of an unverified account works (the OTP proves the email) · session idle 8 h, absolute 7 days.
 
-### Roles (ADR-015)
+### Roles and assignments (ADR-015 / ADR-016)
 
 | Action | ADMIN | RECRUITER | INTERVIEWER |
 |---|---|---|---|
-| Read meetings, calendar, candidates | ✅ | ✅ | ✅ |
-| Add feedback | ✅ | ✅ | ✅ |
-| Create / edit / cancel any meeting, create candidates | ✅ | ✅ (team covers each other) | 403 |
-| Delete a meeting | any | only meetings they created | 403 |
+| Read meetings, calendar, candidates; add feedback | ✅ | ✅ | ✅ (including other interviewers' meetings) |
+| Create meetings / standalone candidates | ✅ | ✅ | 403 |
+| Edit / cancel a meeting | any | any (team covers each other) | only when assigned to that meeting |
+| Set / replace / clear interviewer assignments | ✅ | ✅ | 403 (even on an assigned meeting) |
+| Delete a meeting | any | only meetings they created | 403 (including assigned meetings) |
 
 Register offers only `RECRUITER` and `INTERVIEWER`; a body with `role: "ADMIN"` is a 400. An email listed in
 `ADMIN_EMAILS` registers as `ADMIN` whatever it asked for. The demo seed makes the demo user `ADMIN` and adds
-`interviewer@example.com` (same password) as `INTERVIEWER`. Checks run in the API; the UI only hides what a role
-cannot do.
+`interviewer@example.com` (same password) as `INTERVIEWER`. The API enforces all permissions.
+
+`createdById` and `isMine` still identify the creator. Assignments are separate, may contain several interviewers,
+and do not transfer creation/deletion ownership. Existing meetings start unassigned; there is no automatic
+assignment based on creator or feedback. Interviewers may change meeting fields (including the candidate link
+or inline candidate) when assigned, but may never change `interviewerIds` or delete the meeting.
+
+### `GET /interviewers`
+ADMIN / RECRUITER only; INTERVIEWER → 403. Query: `query` (optional, trimmed email substring, ≤254 chars).
+Returns 200 `{ items: AssignedInterviewer[] }`, at most 50 verified INTERVIEWER accounts ordered by email then id.
+Empty search returns the first 50; search refines the result when the team is larger. No password, session or OTP
+fields are returned. Unknown query keys → 400.
+
+### Assignment fields on meeting writes
+`POST /meetings` and `PATCH /meetings/:id` accept optional `interviewerIds: string[]`: unique UUIDs, at most 50,
+all belonging to verified INTERVIEWER accounts. Unknown, unverified or wrong-role accounts → 400
+`VALIDATION_ERROR` at `body.interviewerIds`. Omitted on create means unassigned; omitted on patch preserves
+assignments; an empty array explicitly clears them. Only ADMIN / RECRUITER may send this field.
+
+Assignment changes are atomic with the meeting/candidate write and use the meeting `version`. A reassignment
+increments `version`; stale concurrent writes cannot restore old assignments or create orphan candidates.
+Authorization for edit/cancel is checked against current assignments before changing anything. Removal of an
+assignment removes that interviewer's write access; reading and adding feedback remain allowed.
 
 ## 4. Meetings (WS-A)
 
 ### `GET /meetings` — paginated list
-Query (all optional): `page` (≥1, default 1) · `pageSize` (1–50, default 10) · `status` (one status) · `from`, `to` (instants, `dueDate >= from` and `< to`) · `candidateId` · `mine` (`true|false`, default `false`).
+Query (all optional): `page` (≥1, default 1) · `pageSize` (1–50, default 10) · `status` (one status) · `from`, `to` (instants, `dueDate >= from` and `< to`) · `candidateId` · `mine` (`true|false`, default `false`, creator filter) · `assignedToMe` (`true|false`, default `false`, assigned interviewer filter).
 Order: `dueDate asc, id asc`. Page past the end → 200 with `items: []`.
 → 200 `Page<Meeting>` · 400
 
@@ -195,3 +220,10 @@ Candidates cannot be deleted (FK `RESTRICT`).
 ## 7. Health (Phase 1, done)
 
 `GET /api/health/live` → 200 `{ status: "ok", version }` · `GET /api/health/ready` → 200 `{ status: "ok" }` / 503 `{ status: "unavailable" }`. Not under `/api/v1`, not access-logged.
+
+
+### Assignment filtering
+Both paginated list and `view=range` support `assignedToMe=true|false` (default false), matching the session user's
+assignment. It composes with `mine` (creator), status, date and candidate filters using AND. Reading remains
+team-wide when these filters are absent. The UI's **Mine** toggle sends `assignedToMe=true` for INTERVIEWER;
+ADMIN / RECRUITER continue to use `mine=true`. Candidate summaries also include each meeting's `interviewers`.
